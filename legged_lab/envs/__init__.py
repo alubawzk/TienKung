@@ -34,11 +34,21 @@ from legged_lab.envs.tienkung.walk_with_sensor_cfg import (
 )
 from legged_lab.utils.task_registry import task_registry
 
-task_registry.register("walk", TienKungEnv, TienKungWalkFlatEnvCfg(), TienKungWalkAgentCfg())
-task_registry.register("run", TienKungEnv, TienKungRunFlatEnvCfg(), TienKungRunAgentCfg())
+## Add mini3 register
+from legged_lab.envs.mini3.mini3_env import Mini3_Env
+from legged_lab.envs.mini3.walk_cfg import (
+    Mini3_WalkAgentCfg,
+    Mini3_WalkFlatEnvCfg,
+)
+
+## Add mini3 register
+task_registry.register("walk", Mini3_Env, Mini3_WalkFlatEnvCfg(), Mini3_WalkAgentCfg())
+
+task_registry.register("tienkun_walk", TienKungEnv, TienKungWalkFlatEnvCfg(), TienKungWalkAgentCfg())
+task_registry.register("tienkun_run", TienKungEnv, TienKungRunFlatEnvCfg(), TienKungRunAgentCfg())
 task_registry.register(
-    "walk_with_sensor", TienKungEnv, TienKungWalkWithSensorFlatEnvCfg(), TienKungWalkWithSensorAgentCfg()
+    "tienkun_walk_with_sensor", TienKungEnv, TienKungWalkWithSensorFlatEnvCfg(), TienKungWalkWithSensorAgentCfg()
 )
 task_registry.register(
-    "run_with_sensor", TienKungEnv, TienKungRunWithSensorFlatEnvCfg(), TienKungRunWithSensorAgentCfg()
+    "tienkun_run_with_sensor", TienKungEnv, TienKungRunWithSensorFlatEnvCfg(), TienKungRunWithSensorAgentCfg()
 )

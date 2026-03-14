@@ -35,7 +35,7 @@ def track_lin_vel_xy_yaw_frame_exp(
     env: BaseEnv | TienKungEnv, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
-    vel_yaw = math_utils.quat_rotate_inverse(
+    vel_yaw = math_utils.quat_apply_inverse(
         math_utils.yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3]
     )
     lin_vel_error = torch.sum(torch.square(env.command_generator.command[:, :2] - vel_yaw[:, :2]), dim=1)
@@ -159,7 +159,7 @@ def body_orientation_l2(
     env: BaseEnv | TienKungEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
-    body_orientation = math_utils.quat_rotate_inverse(
+    body_orientation = math_utils.quat_apply_inverse(
         asset.data.body_quat_w[:, asset_cfg.body_ids[0], :], asset.data.GRAVITY_VEC_W
     )
     return torch.sum(torch.square(body_orientation[:, :2]), dim=1)
@@ -292,3 +292,33 @@ def gait_feet_frc_support_perio(env: TienKungEnv, delta_t: float = 0.02) -> torc
     left_frc_score = left_frc_support_mask * (1 - torch.exp(-10 * torch.square(env.avg_feet_force_per_step[:, 0])))
     right_frc_score = right_frc_support_mask * (1 - torch.exp(-10 * torch.square(env.avg_feet_force_per_step[:, 1])))
     return left_frc_score + right_frc_score
+
+
+def joint_pos_limits_exclude(
+    env,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    exclude_joint_names: list[str] | None = None,
+) -> torch.Tensor:
+    """Penalize joint positions that exceed soft limits, excluding specified joints."""
+    import re
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_names = asset.data.joint_names
+
+    if exclude_joint_names:
+        include_ids = [
+            i for i, name in enumerate(joint_names)
+            if not any(re.fullmatch(pat, name) for pat in exclude_joint_names)
+        ]
+    else:
+        include_ids = list(range(len(joint_names)))
+
+    include_ids = torch.tensor(include_ids, device=env.device)
+    out_of_limits = -(
+        asset.data.joint_pos[:, include_ids]
+        - asset.data.soft_joint_pos_limits[:, include_ids, 0]
+    ).clip(max=0.0)
+    out_of_limits += (
+        asset.data.joint_pos[:, include_ids]
+        - asset.data.soft_joint_pos_limits[:, include_ids, 1]
+    ).clip(min=0.0)
+    return torch.sum(out_of_limits, dim=1)

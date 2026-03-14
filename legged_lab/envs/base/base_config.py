@@ -66,6 +66,7 @@ class RobotCfg:
     action_scale: float = 0.25
     terminate_contacts_body_names: list = []
     feet_body_names: list = []
+    max_tilt_angle_deg: float = 45.0  # Maximum tilt angle in degrees before reset
 
 
 @configclass

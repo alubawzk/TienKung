@@ -58,7 +58,7 @@ pip install -e .
 - Verify that the extension is correctly installed by running the following command:
 
 ```bash
-python legged_lab/scripts/train.py --task=walk  --logger=tensorboard --headless --num_envs=64
+python legged_lab/scripts/train.py --task=tienkung_walk  --logger=tensorboard --headless --num_envs=64
 ```
 
 ## Usage
@@ -126,6 +126,7 @@ Train the policy using AMP expert data from tienkung/datasets/motion_amp_expert.
 ```bash
 python legged_lab/scripts/train.py --task=walk --headless --logger=tensorboard --num_envs=4096
 python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --num_envs=4096
+nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 50000 --num_envs 4096 --headless --run_name ReviseRollJointPosLimit_AddWaistDevPen  >my_output.log 2>&1 &
 ```
 
 ### Play
@@ -133,7 +134,7 @@ python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task=walk --num_envs=1
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-13_18-14-24_Revise_RollJointPenalty
 python legged_lab/scripts/play.py --task=run --num_envs=1
 ```
 
@@ -190,6 +191,26 @@ In some VsCode versions, the indexing of part of the extensions is missing. In t
         "<path-to-IsaacLab>/source/isaaclab",
     ]
 }
+```
+
+### GLIBCXX Version Error
+
+If you encounter an error like `version 'GLIBCXX_3.4.30' not found`, this is due to a mismatch in C++ standard library versions between conda environments. 
+
+**Solution 1: Update libstdc++ in your conda environment**
+```bash
+conda activate <your_environment>
+conda install -c conda-forge libstdcxx-ng -y
+```
+
+**Solution 2: Use the same conda environment for Isaac Lab and this project**
+Make sure you're using the conda environment where Isaac Lab is installed (typically named `isaaclab` or `jlab`) when running scripts from this project.
+
+**Solution 3: Verify the fix**
+After updating, verify that GLIBCXX_3.4.30 is available:
+```bash
+conda activate <your_environment>
+strings $CONDA_PREFIX/lib/libstdc++.so.6 | grep "GLIBCXX_3.4.30"
 ```
 
 ## Acknowledgement

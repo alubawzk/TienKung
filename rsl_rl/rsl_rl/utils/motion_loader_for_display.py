@@ -63,29 +63,40 @@ class AMPLoaderDisplay:
 
         for i, motion_file in enumerate(motion_files):
             self.trajectory_names.append(motion_file.split(".")[0])
-            with open(motion_file) as f:
-                motion_json = json.load(f)
-                motion_data = np.array(motion_json["Frames"])
+            # Try multiple encodings to handle different file formats
+            encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252']
+            motion_json = None
+            for encoding in encodings:
+                try:
+                    with open(motion_file, 'r', encoding=encoding) as f:
+                        motion_json = json.load(f)
+                    break
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+            if motion_json is None:
+                raise ValueError(f"Failed to decode JSON file {motion_file} with any supported encoding")
+            
+            motion_data = np.array(motion_json["Frames"])
 
-                # Remove first 7 observation dimensions (root_pos and root_orn).
-                self.trajectories.append(
-                    torch.tensor(
-                        motion_data[:, : AMPLoaderDisplay.JOINT_VEL_END_IDX], dtype=torch.float32, device=device
-                    )
+            # Remove first 7 observation dimensions (root_pos and root_orn).
+            self.trajectories.append(
+                torch.tensor(
+                    motion_data[:, : AMPLoaderDisplay.JOINT_VEL_END_IDX], dtype=torch.float32, device=device
                 )
-                self.trajectories_full.append(
-                    torch.tensor(
-                        motion_data[:, : AMPLoaderDisplay.JOINT_VEL_END_IDX], dtype=torch.float32, device=device
-                    )
+            )
+            self.trajectories_full.append(
+                torch.tensor(
+                    motion_data[:, : AMPLoaderDisplay.JOINT_VEL_END_IDX], dtype=torch.float32, device=device
                 )
-                self.trajectory_idxs.append(i)
-                self.trajectory_weights.append(float(motion_json["MotionWeight"]))
-                frame_duration = float(motion_json["FrameDuration"])
-                self.trajectory_frame_durations.append(frame_duration)
-                traj_len = (motion_data.shape[0] - 1) * frame_duration
-                print(f"traj_len:{traj_len}")
-                self.trajectory_lens.append(traj_len)
-                self.trajectory_num_frames.append(float(motion_data.shape[0]))
+            )
+            self.trajectory_idxs.append(i)
+            self.trajectory_weights.append(float(motion_json["MotionWeight"]))
+            frame_duration = float(motion_json["FrameDuration"])
+            self.trajectory_frame_durations.append(frame_duration)
+            traj_len = (motion_data.shape[0] - 1) * frame_duration
+            print(f"traj_len:{traj_len}")
+            self.trajectory_lens.append(traj_len)
+            self.trajectory_num_frames.append(float(motion_data.shape[0]))
 
             print(f"Loaded {traj_len}s. motion from {motion_file}.")
 

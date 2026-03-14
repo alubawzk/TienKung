@@ -7,4 +7,4 @@ run_bash.sh
 wandb
 MUJOCO_LOG.TXT
 .history
-./legged_lab/assets/
+/legged_lab/assets/

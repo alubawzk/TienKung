@@ -33,6 +33,9 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument("--vx", type=float, default=1.0, help="Forward velocity command (m/s).")
+parser.add_argument("--vy", type=float, default=0.0, help="Lateral velocity command (m/s).")
+parser.add_argument("--vz", type=float, default=0.0, help="Yaw angular velocity command (rad/s).")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -67,8 +70,9 @@ def play():
     env_cfg.scene.num_envs = 50
     env_cfg.scene.env_spacing = 2.5
     env_cfg.commands.rel_standing_envs = 0.0
-    env_cfg.commands.ranges.lin_vel_x = (1.0, 1.0)
-    env_cfg.commands.ranges.lin_vel_y = (0.0, 0.0)
+    env_cfg.commands.ranges.lin_vel_x = (args_cli.vx, args_cli.vx)
+    env_cfg.commands.ranges.lin_vel_y = (args_cli.vy, args_cli.vy)
+    env_cfg.commands.ranges.ang_vel_z = (args_cli.vz, args_cli.vz)
     env_cfg.scene.height_scanner.drift_range = (0.0, 0.0)
 
     env_cfg.scene.terrain_generator = None

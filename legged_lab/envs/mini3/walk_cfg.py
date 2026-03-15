@@ -117,7 +117,7 @@ class LiteRewardCfg:
     #     weight=-2.0,
     #     params={"exclude_joint_names": [".*_shoulder_roll_joint", ".*_hip_roll_joint"]},
     # )
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-2.0)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.5)
 
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
@@ -136,7 +136,7 @@ class LiteRewardCfg:
     )
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.05,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_roll_joint", ".*_shoulder_yaw_joint"])},
     )
     joint_deviation_legs = RewTerm(
@@ -294,7 +294,7 @@ class Mini3_WalkFlatEnvCfg:
         ),
         action_delay=ActionDelayCfg(enable=False, params={"max_delay": 5, "min_delay": 0}),
     )
-    sim: SimCfg = SimCfg(dt=0.005, decimation=4, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    sim: SimCfg = SimCfg(dt=0.002, decimation=10, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
 
 
 @configclass

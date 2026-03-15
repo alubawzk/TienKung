@@ -126,7 +126,12 @@ Train the policy using AMP expert data from tienkung/datasets/motion_amp_expert.
 ```bash
 python legged_lab/scripts/train.py --task=walk --headless --logger=tensorboard --num_envs=4096
 python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --num_envs=4096
-nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 50000 --num_envs 4096 --headless --run_name ReviseRollJointPosLimit_AddWaistDevPen  >my_output.log 2>&1 &
+
+nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 3000 --num_envs 8192 --headless --run_name Change_DelayedPDActuatorCfg_500Hz >my_output.log 2>&1 &
+1646471
+
+nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 3000 --num_envs 8192 --headless --run_name Add_JointArmature_500Hz >my_output1.log 2>&1 &
+
 ```
 
 ### Play
@@ -134,8 +139,7 @@ nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-13_18-14-24_Revise_RollJointPenalty
-python legged_lab/scripts/play.py --task=run --num_envs=1
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_10-38-32_Add_JointArmature_500Hz --vx 0.0
 ```
 
 ### Sim2Sim(MuJoCo)

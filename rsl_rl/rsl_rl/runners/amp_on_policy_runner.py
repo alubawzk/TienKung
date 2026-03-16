@@ -113,6 +113,7 @@ class AmpOnPolicyRunner:
             preload_transitions=True,
             num_preload_transitions=train_cfg["amp_num_preload_transitions"],
             motion_files=train_cfg["amp_motion_files"],
+            motion_file_weights=train_cfg.get("amp_motion_file_weights", None),
         )
         amp_normalizer = Normalizer(amp_data.observation_dim)
         discriminator = Discriminator(

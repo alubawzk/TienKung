@@ -128,9 +128,8 @@ python legged_lab/scripts/train.py --task=walk --headless --logger=tensorboard -
 python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --num_envs=4096
 
 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 3000 --num_envs 8192 --headless --run_name Change_DelayedPDActuatorCfg_500Hz >my_output.log 2>&1 &
-1646471
 
-nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 3000 --num_envs 8192 --headless --run_name Add_JointArmature_500Hz >my_output1.log 2>&1 &
+nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Implicit_500Hz_MultiMotions >my_output1.log 2>&1 &
 
 ```
 
@@ -139,7 +138,7 @@ nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_10-38-32_Add_JointArmature_500Hz --vx 0.0
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_21-06-40_Implicit_500Hz_MultiMotions_wo2728 --vx 0.6
 ```
 
 ### Sim2Sim(MuJoCo)

@@ -47,13 +47,28 @@ class AMPLoader:
         preload_transitions=False,
         num_preload_transitions=1000000,
         motion_files=glob.glob("datasets/motion_amp_expert/*"),
+        motion_file_weights=None,
     ):
         """Expert dataset provides AMP observations from Dog mocap dataset.
 
         time_between_frames: Amount of time in seconds between transition.
+        motion_file_weights: Optional dict mapping file stem (filename without extension) to weight.
+                             Overrides the MotionWeight field in JSON. Files not in the dict use JSON weight.
         """
+        import os
+
         self.device = device
         self.time_between_frames = time_between_frames
+
+        # Expand glob patterns in motion_files
+        expanded_files = []
+        for pattern in motion_files:
+            matched = glob.glob(pattern)
+            if matched:
+                expanded_files.extend(sorted(matched))
+            else:
+                expanded_files.append(pattern)
+        motion_files = expanded_files
 
         # Values to store for each trajectory.
         self.trajectories = []
@@ -78,7 +93,13 @@ class AMPLoader:
                     torch.tensor(motion_data[:, : AMPLoader.END_POS_END_IDX], dtype=torch.float32, device=device)
                 )
                 self.trajectory_idxs.append(i)
-                self.trajectory_weights.append(float(motion_json["MotionWeight"]))
+                # Use external weight if provided, else fall back to JSON MotionWeight
+                stem = os.path.splitext(os.path.basename(motion_file))[0]
+                if motion_file_weights is not None and stem in motion_file_weights:
+                    weight = float(motion_file_weights[stem])
+                else:
+                    weight = float(motion_json["MotionWeight"])
+                self.trajectory_weights.append(weight)
                 frame_duration = float(motion_json["FrameDuration"])
                 self.trajectory_frame_durations.append(frame_duration)
                 traj_len = (motion_data.shape[0] - 1) * frame_duration
@@ -86,7 +107,7 @@ class AMPLoader:
                 self.trajectory_lens.append(traj_len)
                 self.trajectory_num_frames.append(float(motion_data.shape[0]))
 
-            print(f"Loaded {traj_len}s. motion from {motion_file}.")
+            print(f"Loaded {traj_len}s. motion from {motion_file}. (weight={weight})")
 
         # Trajectory weights are used to sample some trajectories more than others.
         self.trajectory_weights = np.array(self.trajectory_weights) / np.sum(self.trajectory_weights)

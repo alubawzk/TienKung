@@ -81,9 +81,9 @@ class LiteRewardCfg:
         },
     )
     body_orientation_l2 = RewTerm(
-        func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")}, weight=-2.0
+        func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")}, weight=-2.2
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.2)
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_slide = RewTerm(
         func=mdp.feet_slide,
@@ -137,7 +137,9 @@ class LiteRewardCfg:
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.05,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_roll_joint", ".*_shoulder_yaw_joint"])},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
+            ".*_shoulder_roll_joint", 
+            ".*_shoulder_yaw_joint"])},
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
@@ -344,7 +346,27 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
 
     # amp parameter
     amp_reward_coef = 0.3
-    amp_motion_files = ["legged_lab/envs/mini3/datasets/motion_amp_expert/walk_new_TienKung_4linkstrack.json"]
+    amp_motion_files = [
+        # support glob patterns, e.g. load all json in a directory:
+        "legged_lab/envs/mini3/datasets/motion_amp_expert/mini3_tienkung/*.json"
+        # "legged_lab/envs/mini3/datasets/motion_amp_expert/walk_new_TienKung_4linkstrack.json"
+    ]
+    # Optional: per-file weights by filename stem (without extension).
+    # If a file is not listed here, its weight from JSON MotionWeight field is used.
+    # Set to None to use JSON weights for all files.
+    # amp_motion_file_weights = None
+    # Example:
+    amp_motion_file_weights = {
+        "walk_new_TienKung_4linkstrack": 1,
+        "35_01_stageii": 1,
+        "35_02_stageii": 1,
+        "35_03_stageii": 1,
+        "35_04_stageii": 1,
+        "35_06_stageii": 1,
+        # "35_27_stageii": 1,
+        # "35_28_stageii": 1,
+        "107_04_stageii": 1,
+    }
     amp_num_preload_transitions = 200000
     amp_task_reward_lerp = 0.7
     amp_discr_hidden_dims = [1024, 512, 256]

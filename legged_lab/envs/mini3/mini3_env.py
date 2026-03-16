@@ -233,6 +233,7 @@ class Mini3_Env(VecEnv):
 
         # Init gait parameter
         self.gait_phase = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
+        self.gait_phase_accum_time = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.gait_cycle = torch.full(
             (self.num_envs,), self.cfg.gait.gait_cycle, dtype=torch.float, device=self.device, requires_grad=False
         )
@@ -419,6 +420,7 @@ class Mini3_Env(VecEnv):
         self.critic_obs_buffer.reset(env_ids)
         self.action_buffer.reset(env_ids)
         self.episode_length_buf[env_ids] = 0
+        self.gait_phase_accum_time[env_ids] = 0.0
 
         self.scene.write_data_to_sim()
         self.sim.forward()
@@ -661,7 +663,11 @@ class Mini3_Env(VecEnv):
     def _calculate_gait_para(self) -> None:
         """
         Update gait phase parameters based on simulation time and offset.
+        Phase only advances when the commanded velocity is non-zero.
         """
-        t = self.episode_length_buf * self.step_dt / self.gait_cycle
+        command = self.command_generator.command  # (num_envs, 3): [lin_vel_x, lin_vel_y, ang_vel_z]
+        moving = (torch.norm(command[:, :3], dim=-1) > 0.01).float()  # (num_envs,)
+        self.gait_phase_accum_time += moving * self.step_dt
+        t = self.gait_phase_accum_time / self.gait_cycle
         self.gait_phase[:, 0] = (t + self.phase_offset[:, 0]) % 1.0
         self.gait_phase[:, 1] = (t + self.phase_offset[:, 1]) % 1.0

@@ -138,7 +138,7 @@ nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_21-06-40_Implicit_500Hz_MultiMotions_wo2728 --vx 0.6
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-16_11-34-51_Revise_PhaseCalculate --vx 0.0
 ```
 
 ### Sim2Sim(MuJoCo)
@@ -147,7 +147,7 @@ Evaluate the trained policy in MuJoCo to perform cross-simulation validation.
 
 Exported_policy/ contains pretrained policies provided by the project. When using the play script, trained policy is exported automatically and saved to path like logs/run/[timestamp]/exported/policy.pt.
 ```bash
-python legged_lab/scripts/sim2sim.py --task walk --policy Exported_policy/walk.pt --duration 100
+python legged_lab/scripts/sim2sim.py --task walk --policy logs/mini3_walk/2026-03-16_11-34-51_Revise_PhaseCalculate/exported/policy.pt --duration 100
 ```
 
 ### Sim2Real

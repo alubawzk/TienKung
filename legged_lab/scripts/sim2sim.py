@@ -35,11 +35,11 @@ class SimToSimCfg:
 
     class sim:
         sim_duration = 100.0
-        num_action = 20
-        num_obs_per_step = 75
+        num_action = 21
+        num_obs_per_step = 81
         actor_obs_history_length = 10
-        dt = 0.005
-        decimation = 4
+        dt = 0.002
+        decimation = 10
         clip_observations = 100.0
         clip_actions = 100.0
         action_scale = 0.25
@@ -82,63 +82,219 @@ class MujocoRunner:
         self.dof_vel = np.zeros(self.cfg.sim.num_action)
         self.action = np.zeros(self.cfg.sim.num_action)
         self.default_dof_pos = np.array(
-            [0, -0.5, 0, 1.0, -0.5, 0, 0, -0.5, 0, 1.0, -0.5, 0, 0, 0.1, 0.0, -0.3, 0, -0.1, 0.0, -0.3]
+            [
+                0,      # right_hip_pitch_joint
+                0,      # right_hip_roll_joint
+                0,      # right_hip_yaw_joint
+                0,      # right_knee_pitch_joint
+                0,      # right_ankle_pitch_joint
+                0,      # right_ankle_roll_joint
+                0,      # left_hip_pitch_joint
+                0,      # left_hip_roll_joint
+                0,      # left_hip_yaw_joint
+                0,      # left_knee_pitch_joint
+                0,      # left_ankle_pitch_joint
+                0,      # left_ankle_roll_joint
+                0,      # waist_yaw_joint
+                0,      # right_shoulder_pitch_joint
+                0,      # right_shoulder_roll_joint
+                0,      # right_shoulder_yaw_joint
+                0,      # right_elbow_pitch_joint
+                0,      # left_shoulder_pitch_joint
+                0,      # left_shoulder_roll_joint
+                0,      # left_shoulder_yaw_joint
+                0,      # left_elbow_pitch_joint
+            ]
         )
         self.episode_length_buf = 0
         self.gait_phase = np.zeros(2)
         self.gait_cycle = self.cfg.robot.gait_cycle
         self.phase_ratio = np.array([self.cfg.robot.gait_air_ratio_l, self.cfg.robot.gait_air_ratio_r])
         self.phase_offset = np.array([self.cfg.robot.gait_phase_offset_l, self.cfg.robot.gait_phase_offset_r])
+        # PD gains and torque limits in MuJoCo joint order.
+        self.kp = np.array(
+            [
+                35,  # right_hip_pitch_joint
+                20,  # right_hip_roll_joint
+                20,  # right_hip_yaw_joint
+                35,  # right_knee_pitch_joint
+                35,  # right_ankle_pitch_joint
+                20,  # right_ankle_roll_joint
+                35,  # left_hip_pitch_joint
+                20,  # left_hip_roll_joint
+                20,  # left_hip_yaw_joint
+                35,  # left_knee_pitch_joint
+                35,  # left_ankle_pitch_joint
+                20,  # left_ankle_roll_joint
+                20,  # waist_yaw_joint
+                20,  # right_shoulder_pitch_joint
+                15,  # right_shoulder_roll_joint
+                10,  # right_shoulder_yaw_joint
+                10,  # right_elbow_pitch_joint
+                20,  # left_shoulder_pitch_joint
+                15,  # left_shoulder_roll_joint
+                10,  # left_shoulder_yaw_joint
+                10,  # left_elbow_pitch_joint
+            ],
+            dtype=np.float64,
+        )
+        self.kd = np.array(
+            [
+                2.0,  # right_hip_pitch_joint
+                2.0,  # right_hip_roll_joint
+                2.0,  # right_hip_yaw_joint
+                2.0,  # right_knee_pitch_joint
+                1.5,  # right_ankle_pitch_joint
+                1.5,  # right_ankle_roll_joint
+                2.0,  # left_hip_pitch_joint
+                2.0,  # left_hip_roll_joint
+                2.0,  # left_hip_yaw_joint
+                2.0,  # left_knee_pitch_joint
+                1.5,  # left_ankle_pitch_joint
+                1.5,  # left_ankle_roll_joint
+                1.0,  # waist_yaw_joint
+                1.0,  # right_shoulder_pitch_joint
+                1.0,  # right_shoulder_roll_joint
+                1.0,  # right_shoulder_yaw_joint
+                1.0,  # right_elbow_pitch_joint
+                1.0,  # left_shoulder_pitch_joint
+                1.0,  # left_shoulder_roll_joint
+                1.0,  # left_shoulder_yaw_joint
+                1.0,  # left_elbow_pitch_joint
+            ],
+            dtype=np.float64,
+        )
+        self.torque_limit = np.array(
+            [
+                97,  # right_hip_pitch_joint
+                28,  # right_hip_roll_joint
+                28,  # right_hip_yaw_joint
+                97,  # right_knee_pitch_joint
+                20,  # right_ankle_pitch_joint
+                20,  # right_ankle_roll_joint
+                97,  # left_hip_pitch_joint
+                28,  # left_hip_roll_joint
+                28,  # left_hip_yaw_joint
+                97,  # left_knee_pitch_joint
+                20,  # left_ankle_pitch_joint
+                20,  # left_ankle_roll_joint
+                28,  # waist_yaw_joint
+                10,  # right_shoulder_pitch_joint
+                10,  # right_shoulder_roll_joint
+                10,  # right_shoulder_yaw_joint
+                10,  # right_elbow_pitch_joint
+                10,  # left_shoulder_pitch_joint
+                10,  # left_shoulder_roll_joint
+                10,  # left_shoulder_yaw_joint
+                10,  # left_elbow_pitch_joint
+            ],
+            dtype=np.float64,
+        )
+        self.mujoco_joint_names = [
+            "right_hip_pitch_joint",
+            "right_hip_roll_joint",
+            "right_hip_yaw_joint",
+            "right_knee_pitch_joint",
+            "right_ankle_pitch_joint",
+            "right_ankle_roll_joint",
+            "left_hip_pitch_joint",
+            "left_hip_roll_joint",
+            "left_hip_yaw_joint",
+            "left_knee_pitch_joint",
+            "left_ankle_pitch_joint",
+            "left_ankle_roll_joint",
+            "waist_yaw_joint",
+            "right_shoulder_pitch_joint",
+            "right_shoulder_roll_joint",
+            "right_shoulder_yaw_joint",
+            "right_elbow_pitch_joint",
+            "left_shoulder_pitch_joint",
+            "left_shoulder_roll_joint",
+            "left_shoulder_yaw_joint",
+            "left_elbow_pitch_joint",
+        ]
+        self.qpos_adr = np.array(
+            [
+                self.model.jnt_qposadr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name)]
+                for name in self.mujoco_joint_names
+            ],
+            dtype=np.int32,
+        )
+        self.dof_adr = np.array(
+            [
+                self.model.jnt_dofadr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name)]
+                for name in self.mujoco_joint_names
+            ],
+            dtype=np.int32,
+        )
 
         self.mujoco_to_isaac_idx = [
-            0,  # hip_roll_l_joint
-            6,  # hip_roll_r_joint
-            12,  # shoulder_pitch_l_joint
-            16,  # shoulder_pitch_r_joint
-            1,  # hip_pitch_l_joint
-            7,  # hip_pitch_r_joint
-            13,  # shoulder_roll_l_joint
-            17,  # shoulder_roll_r_joint
-            2,  # hip_yaw_l_joint
-            8,  # hip_yaw_r_joint
-            14,  # shoulder_yaw_l_joint
-            18,  # shoulder_yaw_r_joint
-            3,  # knee_pitch_l_joint
-            9,  # knee_pitch_r_joint
-            15,  # elbow_pitch_l_joint
-            19,  # elbow_pitch_r_joint
-            4,  # ankle_pitch_l_joint
-            10,  # ankle_pitch_r_joint
-            5,  # ankle_roll_l_joint
-            11,  # ankle_roll_r_joint
+            6,   # left_hip_pitch_joint
+            0,   # right_hip_pitch_joint
+            12,  # waist_yaw_joint
+            7,   # left_hip_roll_joint
+            1,   # right_hip_roll_joint
+            17,  # left_shoulder_pitch_joint
+            13,  # right_shoulder_pitch_joint
+            8,   # left_hip_yaw_joint
+            2,   # right_hip_yaw_joint
+            18,  # left_shoulder_roll_joint
+            14,  # right_shoulder_roll_joint
+            9,   # left_knee_pitch_joint
+            3,   # right_knee_pitch_joint
+            19,  # left_shoulder_yaw_joint
+            15,  # right_shoulder_yaw_joint
+            10,  # left_ankle_pitch_joint
+            4,   # right_ankle_pitch_joint
+            20,  # left_elbow_pitch_joint
+            16,  # right_elbow_pitch_joint
+            11,  # left_ankle_roll_joint
+            5,   # right_ankle_roll_joint
         ]
         self.isaac_to_mujoco_idx = [
-            0,  # hip_roll_l_joint
-            4,  # hip_pitch_l_joint
-            8,  # hip_yaw_l_joint
-            12,  # knee_pitch_l_joint
-            16,  # ankle_pitch_l_joint
-            18,  # ankle_roll_l_joint
-            1,  # hip_roll_r_joint
-            5,  # hip_pitch_r_joint
-            9,  # hip_yaw_r_joint
-            13,  # knee_pitch_r_joint
-            17,  # ankle_pitch_r_joint
-            19,  # ankle_roll_r_joint
-            2,  # shoulder_pitch_l_joint
-            6,  # shoulder_roll_l_joint
-            10,  # shoulder_yaw_l_joint
-            14,  # elbow_pitch_l_joint
-            3,  # shoulder_pitch_r_joint
-            7,  # shoulder_roll_r_joint
-            11,  # shoulder_yaw_r_joint
-            15,  # elbow_pitch_r_joint
+            1,   # right_hip_pitch_joint
+            4,   # right_hip_roll_joint
+            8,   # right_hip_yaw_joint
+            12,  # right_knee_pitch_joint
+            16,  # right_ankle_pitch_joint
+            20,  # right_ankle_roll_joint
+            0,   # left_hip_pitch_joint
+            3,   # left_hip_roll_joint
+            7,   # left_hip_yaw_joint
+            11,  # left_knee_pitch_joint
+            15,  # left_ankle_pitch_joint
+            19,  # left_ankle_roll_joint
+            2,   # waist_yaw_joint
+            6,   # right_shoulder_pitch_joint
+            10,  # right_shoulder_roll_joint
+            14,  # right_shoulder_yaw_joint
+            18,  # right_elbow_pitch_joint
+            5,   # left_shoulder_pitch_joint
+            9,   # left_shoulder_roll_joint
+            13,  # left_shoulder_yaw_joint
+            17,  # left_elbow_pitch_joint
         ]
         # Initial command vel
         self.command_vel = np.array([0.0, 0.0, 0.0])
+        self.lin_vel_sensor_name = self._resolve_sensor_name(
+            ["linear-velocity", "base_link_site_vel", "base_link_site_linvel"]
+        )
+        self.ang_vel_sensor_name = self._resolve_sensor_name(["angular-velocity", "base_link_site_angvel"])
+        self.orientation_sensor_name = self._resolve_sensor_name(["orientation", "base_link_site_quat"])
         self.obs_history = np.zeros(
             (self.cfg.sim.num_obs_per_step * self.cfg.sim.actor_obs_history_length,), dtype=np.float32
         )
+
+    def _resolve_sensor_name(self, candidates: list[str]) -> str:
+        """Resolve the first available MuJoCo sensor name from candidates."""
+        for name in candidates:
+            try:
+                self.data.sensor(name)
+                return name
+            except KeyError:
+                continue
+        valid_names = [self.model.sensor(i).name for i in range(self.model.nsensor)]
+        raise RuntimeError(f"Missing sensors {candidates}. Available sensors: {valid_names}")
 
     def get_obs(self) -> np.ndarray:
         """
@@ -147,19 +303,21 @@ class MujocoRunner:
         Returns:
             np.ndarray: Normalized and clipped observation history.
         """
-        self.dof_pos = self.data.sensordata[0:20]
-        self.dof_vel = self.data.sensordata[20:40]
+        self.dof_pos = self.data.qpos[self.qpos_adr].copy()
+        self.dof_vel = self.data.qvel[self.dof_adr].copy()
 
         obs = np.concatenate(
             [
-                self.data.sensor("angular-velocity").data.astype(np.double),  # 3
+                self.data.sensor(self.lin_vel_sensor_name).data.astype(np.double),  # 3
+                self.data.sensor(self.ang_vel_sensor_name).data.astype(np.double),  # 3
                 self.quat_rotate_inverse(
-                    self.data.sensor("orientation").data[[1, 2, 3, 0]].astype(np.double), np.array([0, 0, -1])
+                    self.data.sensor(self.orientation_sensor_name).data[[1, 2, 3, 0]].astype(np.double),
+                    np.array([0, 0, -1]),
                 ),  # 3
                 self.command_vel,  # 3
-                (self.dof_pos - self.default_dof_pos)[self.mujoco_to_isaac_idx],  # 20
-                self.dof_vel[self.mujoco_to_isaac_idx],  # 20
-                np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions),  # 20
+                (self.dof_pos - self.default_dof_pos)[self.mujoco_to_isaac_idx],  # 21
+                self.dof_vel[self.mujoco_to_isaac_idx],  # 21
+                np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions),  # 21
                 np.sin(2 * np.pi * self.gait_phase),  # 2
                 np.cos(2 * np.pi * self.gait_phase),  # 2
                 self.phase_ratio,  # 2
@@ -173,15 +331,19 @@ class MujocoRunner:
 
         return np.clip(self.obs_history, -self.cfg.sim.clip_observations, self.cfg.sim.clip_observations)
 
-    def position_control(self) -> np.ndarray:
+    def torque_control(self) -> np.ndarray:
         """
-        Apply position control using scaled action.
+        Apply PD control in joint space and output torques.
 
         Returns:
-            np.ndarray: Target joint positions in MuJoCo order.
+            np.ndarray: Target torques in MuJoCo order.
         """
         actions_scaled = self.action * self.cfg.sim.action_scale
-        return actions_scaled[self.isaac_to_mujoco_idx] + self.default_dof_pos
+        target_pos = actions_scaled[self.isaac_to_mujoco_idx] + self.default_dof_pos
+        dof_pos = self.data.qpos[self.qpos_adr]
+        dof_vel = self.data.qvel[self.dof_adr]
+        torques = self.kp * (target_pos - dof_pos) - self.kd * dof_vel
+        return np.clip(torques, -self.torque_limit, self.torque_limit)
 
     def run(self) -> None:
         """
@@ -192,13 +354,15 @@ class MujocoRunner:
 
         while self.data.time < self.cfg.sim.sim_duration:
             self.obs_history = self.get_obs()
-            self.action[:] = self.policy(torch.tensor(self.obs_history, dtype=torch.float32)).detach().numpy()[:20]
+            self.action[:] = (
+                self.policy(torch.tensor(self.obs_history, dtype=torch.float32)).detach().numpy()[: self.cfg.sim.num_action]
+            )
             self.action = np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions)
 
             for sim_update in range(self.cfg.sim.decimation):
                 step_start_time = time.time()
 
-                self.data.ctrl = self.position_control()
+                self.data.ctrl = self.torque_control()
                 mujoco.mj_step(self.model, self.data)
                 self.viewer.render()
 
@@ -294,7 +458,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        default=os.path.join(LEGGED_LAB_ROOT_DIR, "legged_lab/assets/tienkung2_lite/mjcf/tienkung.xml"),
+        default=os.path.join(LEGGED_LAB_ROOT_DIR, "legged_lab/assets/mini3/mjcf/scene.xml"),
         help="Path to model.xml",
     )
     parser.add_argument("--duration", type=float, default=100.0, help="Simulation duration in seconds")

@@ -81,9 +81,9 @@ class LiteRewardCfg:
         },
     )
     body_orientation_l2 = RewTerm(
-        func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")}, weight=-2.2
+        func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")}, weight=-2.5
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.2)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.5)
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_slide = RewTerm(
         func=mdp.feet_slide,
@@ -183,7 +183,7 @@ class Mini3_WalkFlatEnvCfg:
         env_spacing=2.5,
         robot=MINI3_CFG,
         # terrain_type="generator",
-        # terrain_generator=GRAVEL_TERRAINS_CFG,
+        # terrain_generator=ROUGH_TERRAINS_CFG,
         terrain_type="plane",
         terrain_generator= None,
         max_init_terrain_level=5,
@@ -191,9 +191,9 @@ class Mini3_WalkFlatEnvCfg:
             enable_height_scan=False,
             prim_body_name="base_link",
             resolution=0.1,
-            size=(1.6, 1.0),
+            size=(0.8, 0.5),
             debug_vis=False,
-            drift_range=(0.0, 0.0),  # (0.3, 0.3)
+            drift_range=(0.1, 0.1),  # (0.3, 0.3)
         ),
     )
     robot: RobotCfg = RobotCfg(
@@ -329,7 +329,12 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         normalize_advantage_per_mini_batch=False,
-        symmetry_cfg=None,  # RslRlSymmetryCfg()
+        symmetry_cfg=RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            use_mirror_loss=True,
+            data_augmentation_func="legged_lab.symmetry.mini3_symmetry:get_symmetric_states",
+            mirror_loss_coeff=0.1,
+        ),
         rnd_cfg=None,  # RslRlRndCfg()
     )
     clip_actions = None
@@ -348,7 +353,7 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     amp_reward_coef = 0.3
     amp_motion_files = [
         # support glob patterns, e.g. load all json in a directory:
-        "legged_lab/envs/mini3/datasets/motion_amp_expert/mini3_tienkung/*.json"
+        "legged_lab/envs/mini3/datasets/motion_amp_expert/mini3_walk/*.json"
         # "legged_lab/envs/mini3/datasets/motion_amp_expert/walk_new_TienKung_4linkstrack.json"
     ]
     # Optional: per-file weights by filename stem (without extension).
@@ -357,15 +362,16 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     # amp_motion_file_weights = None
     # Example:
     amp_motion_file_weights = {
-        "walk_new_TienKung_4linkstrack": 1,
+        # "0007_Walking001_stageii": 1,
         "35_01_stageii": 1,
         "35_02_stageii": 1,
         "35_03_stageii": 1,
         "35_04_stageii": 1,
         "35_06_stageii": 1,
-        # "35_27_stageii": 1,
-        # "35_28_stageii": 1,
-        "107_04_stageii": 1,
+        "35_07_stageii": 1,
+        "35_08_stageii": 1,
+        "35_11_stageii": 1,
+        "35_12_stageii": 1,
     }
     amp_num_preload_transitions = 200000
     amp_task_reward_lerp = 0.7

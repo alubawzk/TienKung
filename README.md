@@ -127,9 +127,23 @@ Train the policy using AMP expert data from tienkung/datasets/motion_amp_expert.
 python legged_lab/scripts/train.py --task=walk --headless --logger=tensorboard --num_envs=4096
 python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --num_envs=4096
 
-nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 3000 --num_envs 8192 --headless --run_name Change_DelayedPDActuatorCfg_500Hz >my_output.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Remove_0007_Walking001_stageii >my_output.log 2>&1 &
+1766958
 
-nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Implicit_500Hz_MultiMotions >my_output1.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_MirrorPenalty >my_output1.log 2>&1 &
+1803980
+
+CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_MirrorPenalty_and_augment >my_output2.log 2>&1 &
+1810367
+
+CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name NewJointDefaultPos >my_output3.log 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=4 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name AddTerrain >my_output4.log 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=5 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name AddTerrain_HeightScan >my_output5.log 2>&1 &
+
 
 ```
 

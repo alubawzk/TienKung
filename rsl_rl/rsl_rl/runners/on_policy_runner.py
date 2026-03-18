@@ -22,6 +22,7 @@ import os
 import statistics
 import time
 from collections import deque
+import inspect
 
 import torch
 
@@ -107,6 +108,15 @@ class OnPolicyRunner:
 
         # initialize algorithm
         alg_class = eval(self.alg_cfg.pop("class_name"))
+        # Some external config providers may include keys not supported by the algorithm
+        # constructor in this repo. Filter them out for compatibility.
+        try:
+            allowed_kwargs = set(inspect.signature(alg_class.__init__).parameters.keys())
+            allowed_kwargs.discard("self")
+            self.alg_cfg = {k: v for k, v in self.alg_cfg.items() if k in allowed_kwargs}
+        except (TypeError, ValueError):
+            self.alg_cfg.pop("optimizer", None)
+            self.alg_cfg.pop("share_cnn_encoders", None)
         self.alg: PPO | Distillation = alg_class(
             policy, device=self.device, **self.alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
         )

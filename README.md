@@ -127,14 +127,14 @@ Train the policy using AMP expert data from tienkung/datasets/motion_amp_expert.
 python legged_lab/scripts/train.py --task=walk --headless --logger=tensorboard --num_envs=4096
 python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --num_envs=4096
 
-CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Remove_0007_Walking001_stageii >my_output.log 2>&1 &
-1766958
+CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Revise_PhaseCalculate_SmoothZero >my_output.log 2>&1 &
+2923993
 
-CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_MirrorPenalty >my_output1.log 2>&1 &
-1803980
+CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name YDist_1.3 >my_output1.log 2>&1 &
 
-CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_MirrorPenalty_and_augment >my_output2.log 2>&1 &
-1810367
+
+CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_HipRoll_Scale_-0.2 >my_output2.log 2>&1 &
+
 
 CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name NewJointDefaultPos >my_output3.log 2>&1 &
 
@@ -152,7 +152,7 @@ CUDA_VISIBLE_DEVICES=5 nohup python legged_lab/scripts/train.py --task walk --lo
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-16_11-34-51_Revise_PhaseCalculate --vx 0.0
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-18_16-39-57_YDist_1.4 --vx 0.5
 ```
 
 ### Sim2Sim(MuJoCo)

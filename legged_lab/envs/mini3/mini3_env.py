@@ -234,6 +234,7 @@ class Mini3_Env(VecEnv):
         # Init gait parameter
         self.gait_phase = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
         self.gait_phase_accum_time = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self._was_moving = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
         self.gait_cycle = torch.full(
             (self.num_envs,), self.cfg.gait.gait_cycle, dtype=torch.float, device=self.device, requires_grad=False
         )
@@ -666,8 +667,35 @@ class Mini3_Env(VecEnv):
         Phase only advances when the commanded velocity is non-zero.
         """
         command = self.command_generator.command  # (num_envs, 3): [lin_vel_x, lin_vel_y, ang_vel_z]
-        moving = (torch.norm(command[:, :3], dim=-1) > 0.01).float()  # (num_envs,)
-        self.gait_phase_accum_time += moving * self.step_dt
-        t = self.gait_phase_accum_time / self.gait_cycle
-        self.gait_phase[:, 0] = (t + self.phase_offset[:, 0]) % 1.0
-        self.gait_phase[:, 1] = (t + self.phase_offset[:, 1]) % 1.0
+        moving = torch.norm(command[:, :3], dim=-1) > 0.01  # (num_envs,)
+
+        just_started = moving & (~self._was_moving)
+        stopped = ~moving
+
+        # If not moving, smoothly converge phase to 0 (double-stance) instead of hard reset.
+        if stopped.any():
+            self.gait_phase_accum_time[stopped] = 0.0
+            phase_stopped = self.gait_phase[stopped]
+            # Wrapped shortest delta from current phase to target(0): in [-0.5, 0.5].
+            delta = ((phase_stopped + 0.5) % 1.0) - 0.5
+            step = (self.step_dt / torch.clamp(self.gait_cycle[stopped].unsqueeze(-1), min=1e-6)).expand_as(delta)
+            delta_step = torch.clamp(delta, min=-step, max=step)
+            phase_next = (phase_stopped - delta_step) % 1.0
+            # Snap to exact zero near convergence to avoid tiny numerical residue.
+            phase_next = torch.where(torch.abs(delta - delta_step) < 1e-6, torch.zeros_like(phase_next), phase_next)
+            self.gait_phase[stopped] = phase_next
+
+        # Only advance time after the first moving frame (so "start moving" frame stays at phase 0).
+        advance = moving & (~just_started)
+        if advance.any():
+            self.gait_phase_accum_time[advance] += self.step_dt
+
+        if moving.any():
+            t = self.gait_phase_accum_time / self.gait_cycle
+            self.gait_phase[moving, 0] = (t[moving] + self.phase_offset[moving, 0]) % 1.0
+            self.gait_phase[moving, 1] = (t[moving] + self.phase_offset[moving, 1]) % 1.0
+
+        if just_started.any():
+            self.gait_phase[just_started] = 0.0
+
+        self._was_moving = moving

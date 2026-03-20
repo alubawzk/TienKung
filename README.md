@@ -130,8 +130,8 @@ python legged_lab/scripts/train.py --task=run --headless --logger=tensorboard --
 CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Revise_PhaseCalculate_SmoothZero >my_output.log 2>&1 &
 2923993
 
-CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name YDist_1.3 >my_output1.log 2>&1 &
-
+CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_AmpScale_0.3 >my_output1.log 2>&1 &
+2931932
 
 CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_iterations 5000 --num_envs 8192 --headless --run_name Add_HipRoll_Scale_-0.2 >my_output2.log 2>&1 &
 
@@ -152,7 +152,9 @@ CUDA_VISIBLE_DEVICES=5 nohup python legged_lab/scripts/train.py --task walk --lo
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-18_16-39-57_YDist_1.4 --vx 0.5
+CUDA_VISIBLE_DEVICES=4 python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-18_21-12-12_Revise_PhaseCalculate --vx 0.5
+
+python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-18_21-12-12_Revise_PhaseCalculate --vx 0.5
 ```
 
 ### Sim2Sim(MuJoCo)
@@ -161,7 +163,7 @@ Evaluate the trained policy in MuJoCo to perform cross-simulation validation.
 
 Exported_policy/ contains pretrained policies provided by the project. When using the play script, trained policy is exported automatically and saved to path like logs/run/[timestamp]/exported/policy.pt.
 ```bash
-python legged_lab/scripts/sim2sim.py --task walk --policy logs/mini3_walk/2026-03-16_11-34-51_Revise_PhaseCalculate/exported/policy.pt --duration 100
+python legged_lab/scripts/sim2sim.py --task walk --policy logs/mini3_walk/2026-03-18_21-12-12_Revise_PhaseCalculate/exported/policy.pt --duration 100
 ```
 
 ### Sim2Real

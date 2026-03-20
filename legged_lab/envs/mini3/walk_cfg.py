@@ -350,7 +350,7 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     load_checkpoint = "model_.*.pt"
 
     # amp parameter
-    amp_reward_coef = 0.3
+    amp_reward_coef = 0.4
     amp_motion_files = [
         # support glob patterns, e.g. load all json in a directory:
         "legged_lab/envs/mini3/datasets/motion_amp_expert/mini3_walk/*.json"

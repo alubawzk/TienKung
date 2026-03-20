@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
@@ -29,6 +30,264 @@ from isaaclab.sensors import ContactSensor
 if TYPE_CHECKING:
     from legged_lab.envs.base.base_env import BaseEnv
     from legged_lab.envs.tienkung.tienkung_env import TienKungEnv
+
+
+_EPS = 1.0e-6
+
+
+def _cat_field(env):
+    return env._ensure_cat_state()
+
+
+def _cat_group(env, tensor: torch.Tensor, name: str) -> torch.Tensor:
+    return env._group(tensor, name)
+
+
+def _cat_probe_body_ids(env, name: str) -> list[int]:
+    return env._probe_body_ids[env._probe_slices[name]]
+
+
+def _quat_to_matrix(quat_wxyz: torch.Tensor) -> torch.Tensor:
+    quat_wxyz = quat_wxyz / torch.linalg.norm(quat_wxyz, dim=-1, keepdim=True).clamp_min(_EPS)
+    w, x, y, z = quat_wxyz.unbind(dim=-1)
+    ww = w * w
+    xx = x * x
+    yy = y * y
+    zz = z * z
+    wx = w * x
+    wy = w * y
+    wz = w * z
+    xy = x * y
+    xz = x * z
+    yz = y * z
+    return torch.stack(
+        (
+            torch.stack((ww + xx - yy - zz, 2.0 * (xy - wz), 2.0 * (xz + wy)), dim=-1),
+            torch.stack((2.0 * (xy + wz), ww - xx + yy - zz, 2.0 * (yz - wx)), dim=-1),
+            torch.stack((2.0 * (xz - wy), 2.0 * (yz + wx), ww - xx - yy + zz), dim=-1),
+        ),
+        dim=-2,
+    )
+
+
+def cat_tracking_root_field(env) -> torch.Tensor:
+    field = _cat_field(env)
+    cmd_vel = field["command_current_world"][:, 1:4]
+    lin_vel = env.robot.data.root_lin_vel_w[:, :3]
+    lin_vel_error = torch.sum(torch.square(cmd_vel[:, :2] - lin_vel[:, :2]), dim=1)
+    return torch.exp(-4.0 * lin_vel_error)
+
+
+def cat_body_motion(env) -> torch.Tensor:
+    field = _cat_field(env)
+    cmd_xy = field["command_current_world"][:, 1:3]
+    cmd_norm = torch.linalg.norm(cmd_xy, dim=1, keepdim=True)
+    is_zero_cmd = cmd_norm.squeeze(1) < _EPS
+    cmd_dir = torch.where(is_zero_cmd.unsqueeze(-1), torch.zeros_like(cmd_xy), cmd_xy / cmd_norm.clamp_min(_EPS))
+
+    lin_xy = env.robot.data.root_lin_vel_w[:, :2]
+    lin_xy_orth = lin_xy - torch.sum(lin_xy * cmd_dir, dim=1, keepdim=True) * cmd_dir
+    cost_lin_xy_orth = torch.where(is_zero_cmd, torch.zeros_like(cmd_norm.squeeze(1)), torch.sum(torch.square(lin_xy_orth), dim=1))
+
+    torso_ang_vel_nav = field["torso_ang_vel_nav"]
+    cost = 1.2 * cost_lin_xy_orth + 0.4 * torch.abs(torso_ang_vel_nav[:, 0]) + 0.4 * torch.abs(torso_ang_vel_nav[:, 1])
+    return torch.nan_to_num(cost)
+
+
+def cat_tracking_orientation(env, torso_height_upper: float = 1.0) -> torch.Tensor:
+    field = _cat_field(env)
+    pelvis_rpy = field["pelvis_nav_rpy"]
+    torso_rpy = field["torso_nav_rpy"]
+    head_height = _cat_group(env, field["positions_local"], "head")[..., 2].amax(dim=1)
+    idle_mask = head_height > (torso_height_upper + 0.1)
+
+    err_roll = torch.abs(pelvis_rpy[:, 0]) + torch.abs(torso_rpy[:, 0])
+    err_pitch_dire = torch.abs(torch.clamp(torso_rpy[:, 1], min=-math.pi, max=0.0))
+    err_pitch_idle = idle_mask.float() * torch.abs(torso_rpy[:, 1])
+    err_ori = err_roll + err_pitch_dire + err_pitch_idle
+    rew = torch.exp(-0.5 * err_ori) - err_pitch_dire
+    return torch.nan_to_num(rew)
+
+
+def cat_foot_contact(env, threshold: float = 0.5) -> torch.Tensor:
+    field = _cat_field(env)
+    net_contact_forces = env.contact_sensor.data.net_forces_w_history
+    feet_contact = torch.max(torch.norm(net_contact_forces[:, :, env.feet_cfg.body_ids], dim=-1), dim=1)[0] > threshold
+    stance = feet_contact.float()
+    swing = (~feet_contact).float()
+    gait_flag = env._gait_mask
+    stance_des = (gait_flag == 1).float()
+    swing_des = (gait_flag == -1).float()
+    is_constrained = (gait_flag != 0).float()
+    cost = torch.sum(torch.abs(stance - stance_des) * is_constrained, dim=1)
+    cost += torch.sum(torch.abs(swing - swing_des) * is_constrained, dim=1)
+    cost *= field["command_current_world"][:, 0]
+    return torch.nan_to_num(cost)
+
+
+def cat_foot_clearance(env, foot_height_stance: float = 0.0) -> torch.Tensor:
+    field = _cat_field(env)
+    foot_z = _cat_group(env, field["positions_local"], "feet")[..., 2]
+    swing_des = (env._gait_mask == -1).float()
+    foot_z_target = foot_height_stance + env._foot_height_target
+    cost = torch.sum(swing_des * torch.square(foot_z - foot_z_target), dim=1)
+    cost *= field["command_current_world"][:, 0]
+    return torch.nan_to_num(cost)
+
+
+def cat_foot_slip(env) -> torch.Tensor:
+    field = _cat_field(env)
+    stance_des = (env._gait_mask == 1).float()
+    feet_vel = torch.linalg.norm(_cat_group(env, field["velocities_w"], "feet"), dim=-1)
+    cost = torch.sum(torch.square(feet_vel) * stance_des, dim=1)
+    return torch.nan_to_num(cost)
+
+
+def cat_foot_balance(env) -> torch.Tensor:
+    field = _cat_field(env)
+    feet_pos_w = _cat_group(env, field["positions_w"], "feet")
+    world_to_nav = field["nav_to_world_rot"].transpose(1, 2)
+    root_pos_w = env.robot.data.root_pos_w[:, :3]
+
+    support_world = torch.stack((root_pos_w, feet_pos_w[:, 0, :], feet_pos_w[:, 1, :]), dim=1)
+    support_nav = torch.einsum("eij,ekj->eki", world_to_nav, support_world - root_pos_w.unsqueeze(1))
+    foot_to_com_err = support_nav[:, 1:, :] - support_nav[:, 0:1, :]
+    foot_center = foot_to_com_err[:, 0, :2] + foot_to_com_err[:, 1, :2]
+    cost_support = torch.sum(torch.square(foot_center), dim=1)
+
+    foot_distance = torch.linalg.norm(feet_pos_w[:, 0, :] - feet_pos_w[:, 1, :], dim=1)
+    foot_spread_penalty = torch.where(foot_distance < 0.35, 0.35 - foot_distance, torch.zeros_like(foot_distance)) * 10.0
+    return torch.nan_to_num(cost_support * (1.0 + foot_spread_penalty))
+
+
+def cat_straight_knee(
+    env,
+    joint_patterns: list[str],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    import re
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_names = asset.data.joint_names
+    joint_ids = [i for i, name in enumerate(joint_names) if any(re.fullmatch(pat, name) for pat in joint_patterns)]
+    if not joint_ids:
+        return torch.zeros(env.num_envs, device=env.device)
+    joint_ids_t = torch.tensor(joint_ids, device=env.device, dtype=torch.long)
+    knee_pos = asset.data.joint_pos[:, joint_ids_t]
+    penalty = torch.clamp(0.1 - knee_pos, min=0.0)
+    return torch.nan_to_num(torch.sum(penalty, dim=1))
+
+
+def cat_foot_far(env) -> torch.Tensor:
+    field = _cat_field(env)
+    feet_pos_w = _cat_group(env, field["positions_w"], "feet")
+    foot_distance = torch.linalg.norm(feet_pos_w[:, 0, :] - feet_pos_w[:, 1, :], dim=1)
+    return torch.where(foot_distance < 0.35, 0.35 - foot_distance, torch.zeros_like(foot_distance))
+
+
+def cat_joint_pos_limits(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    asset: Articulation = env.scene[asset_cfg.name]
+    out_of_limits = -(asset.data.joint_pos - asset.data.soft_joint_pos_limits[..., 0]).clip(max=0.0)
+    out_of_limits += (asset.data.joint_pos - asset.data.soft_joint_pos_limits[..., 1]).clip(min=0.0)
+    return torch.sum(out_of_limits, dim=1)
+
+
+def cat_joint_torque(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.applied_torque), dim=1)
+
+
+def cat_smoothness_joint(
+    env,
+    joint_patterns: list[str] | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    import re
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    if joint_patterns:
+        joint_ids = [i for i, name in enumerate(asset.data.joint_names) if any(re.fullmatch(pat, name) for pat in joint_patterns)]
+        if not joint_ids:
+            return torch.zeros(env.num_envs, device=env.device)
+        joint_ids_t = torch.tensor(joint_ids, device=env.device, dtype=torch.long)
+        qvel = asset.data.joint_vel[:, joint_ids_t]
+        last_joint_vel = env._last_joint_vel[:, joint_ids_t]
+    else:
+        qvel = asset.data.joint_vel
+        last_joint_vel = env._last_joint_vel
+    qacc = (last_joint_vel - qvel) / env.step_dt
+    cost = torch.sum(0.01 * torch.square(qvel) + torch.square(qacc), dim=1)
+    return torch.nan_to_num(cost)
+
+
+def cat_smoothness_action(env) -> torch.Tensor:
+    action_hist = env.action_buffer._circular_buffer.buffer
+    if action_hist.shape[1] < 3:
+        act = action_hist[:, -1, :]
+        return torch.nan_to_num(torch.sum(torch.square(act), dim=1))
+    act = action_hist[:, -1, :]
+    last_act = action_hist[:, -2, :]
+    last_last_act = action_hist[:, -3, :]
+    smooth_0th = torch.square(act)
+    smooth_1st = torch.square(act - last_act)
+    smooth_2nd = torch.square(act - 2.0 * last_act + last_last_act)
+    return torch.nan_to_num(torch.sum(smooth_0th + smooth_1st + smooth_2nd, dim=1))
+
+
+def cat_body_rotation(env, yaw_cmd_max: float = 0.5) -> torch.Tensor:
+    field = _cat_field(env)
+    leg_body_ids = _cat_probe_body_ids(env, "knees") + _cat_probe_body_ids(env, "feet")
+    leg_quat_w = env.robot.data.body_quat_w[:, leg_body_ids, :]
+    leg_rot_w = _quat_to_matrix(leg_quat_w)
+    world_to_nav = field["nav_to_world_rot"].transpose(1, 2).unsqueeze(1)
+    leg_rot_nav = torch.matmul(world_to_nav, leg_rot_w)
+
+    cmd_vel = field["command_current_world"][:, 3]
+    cmd_decay = torch.clamp((yaw_cmd_max - torch.abs(cmd_vel)) / max(yaw_cmd_max, _EPS), min=0.0, max=1.0) ** 2
+    axis_roll_err = torch.mean(torch.abs(leg_rot_nav[:, :, 2, 1]), dim=1)
+    axis_yaw_err = torch.mean(cmd_decay.unsqueeze(1) * torch.abs(leg_rot_nav[:, :, 0, 1]), dim=1)
+    return torch.nan_to_num(torch.exp(-5.0 * (axis_roll_err + axis_yaw_err)))
+
+
+def cat_pf_alignment_reward(
+    env,
+    group_name: str,
+    tau: float,
+    crossed_x: float = 1.5,
+    block_stance_feet: bool = False,
+) -> torch.Tensor:
+    field = _cat_field(env)
+    gf_vel = _cat_group(env, field["current_gf_world"], group_name)
+    lin_vel = _cat_group(env, field["velocities_w"], group_name)
+    sdf = _cat_group(env, field["current_sdf"], group_name)
+    pos_x = _cat_group(env, field["positions_local"], group_name)[..., 0]
+
+    g_norm = gf_vel / torch.linalg.norm(gf_vel, dim=-1, keepdim=True).clamp_min(_EPS)
+    v_norm = lin_vel / torch.linalg.norm(lin_vel, dim=-1, keepdim=True).clamp_min(_EPS)
+    cos_align = torch.sum(g_norm * v_norm, dim=-1)
+
+    window = torch.sigmoid(40.0 * (tau - sdf))
+    reward_near = window * (5.0 * cos_align)
+
+    crossed = (field["command_current_world"][:, 0:1] < 0.5) | (pos_x > crossed_x)
+    if block_stance_feet:
+        crossed = crossed | (env._gait_mask == 1)
+    reward_near = torch.where(crossed, torch.full_like(reward_near, 4.0), reward_near)
+    return torch.nan_to_num(torch.mean(reward_near, dim=1))
+
+
+def cat_pf_sdf_penalty(
+    env,
+    group_name: str,
+    sdf_safe: float = 0.05,
+    beta_inside: float = 0.02,
+    pen_inside_scale: float = 20.0,
+) -> torch.Tensor:
+    field = _cat_field(env)
+    sdf = _cat_group(env, field["current_sdf"], group_name)
+    pen_inside = torch.nn.functional.softplus((sdf_safe - sdf) / beta_inside)
+    penalty = pen_inside_scale * pen_inside
+    return torch.nan_to_num(-torch.mean(penalty, dim=1))
 
 
 def track_lin_vel_xy_yaw_frame_exp(

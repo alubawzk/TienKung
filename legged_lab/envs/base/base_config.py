@@ -22,6 +22,7 @@ from dataclasses import MISSING
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
 from isaaclab.utils import configclass
 
@@ -46,6 +47,20 @@ class HeightScannerCfg:
 
 
 @configclass
+class MeshObstacleCfg:
+    enable: bool = False
+    source_path: str = ""
+    usd_dir: str | None = None
+    usd_file_name: str | None = None
+    prim_path: str = "{ENV_REGEX_NS}/Obstacle"
+    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    collision_group: int = 0
+    collision_enabled: bool = True
+
+
+@configclass
 class BaseSceneCfg:
     max_episode_length_s: float = 20.0
     num_envs: int = 4096
@@ -57,6 +72,8 @@ class BaseSceneCfg:
     height_scanner: HeightScannerCfg = HeightScannerCfg()
     lidar: LidarCfg = LidarCfg()
     depth_camera: TiledCameraCfg = TiledCameraCfg()
+    mesh_obstacle: MeshObstacleCfg | None = None
+    filtered_contact_sensors: dict[str, ContactSensorCfg] | None = None
 
 
 @configclass
@@ -64,6 +81,8 @@ class RobotCfg:
     actor_obs_history_length: int = 10
     critic_obs_history_length: int = 10
     action_scale: float = 0.25
+    action_joint_names: list[str] = []
+    obs_joint_names: list[str] = []
     terminate_contacts_body_names: list = []
     feet_body_names: list = []
     max_tilt_angle_deg: float = 45.0  # Maximum tilt angle in degrees before reset

@@ -95,7 +95,23 @@ class BaseEnv(VecEnv):
 
         self.max_episode_length_s = self.cfg.scene.max_episode_length_s
         self.max_episode_length = np.ceil(self.max_episode_length_s / self.step_dt)
-        self.num_actions = self.robot.data.default_joint_pos.shape[1]
+        self.robot_cfg = SceneEntityCfg(name="robot")
+        self.robot_cfg.resolve(self.scene)
+
+        if getattr(self.cfg.robot, "action_joint_names", None):
+            self.action_joint_cfg = SceneEntityCfg(
+                name="robot", joint_names=self.cfg.robot.action_joint_names, preserve_order=True
+            )
+            self.action_joint_cfg.resolve(self.scene)
+            self.action_joint_ids = [
+                int(joint_id.item()) if hasattr(joint_id, "item") else int(joint_id)
+                for joint_id in self.action_joint_cfg.joint_ids
+            ]
+            self.num_actions = len(self.action_joint_ids)
+        else:
+            self.action_joint_cfg = None
+            self.action_joint_ids = list(range(self.robot.data.default_joint_pos.shape[1]))
+            self.num_actions = self.robot.data.default_joint_pos.shape[1]
         self.clip_actions = self.cfg.normalization.clip_actions
         self.clip_obs = self.cfg.normalization.clip_observations
 
@@ -116,8 +132,6 @@ class BaseEnv(VecEnv):
             )
             self.action_buffer.set_time_lag(time_lags, torch.arange(self.num_envs, device=self.device))
 
-        self.robot_cfg = SceneEntityCfg(name="robot")
-        self.robot_cfg.resolve(self.scene)
         self.termination_contact_cfg = SceneEntityCfg(
             name="contact_sensor", body_names=self.cfg.robot.terminate_contacts_body_names
         )

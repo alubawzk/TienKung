@@ -17,6 +17,7 @@
 # and is distributed under the BSD-3-Clause license.
 
 import argparse
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -31,6 +32,12 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument(
+    "--field_path",
+    type=str,
+    default=None,
+    help="Override CAT field asset directory, e.g. data/assets/TypiObs/bar1.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -69,6 +76,13 @@ def train():
 
     if args_cli.num_envs is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
+
+    if args_cli.field_path is not None:
+        if not hasattr(env_cfg, "field") or not hasattr(env_cfg.field, "path"):
+            raise ValueError(f"Task '{env_class_name}' does not support '--field_path'.")
+        env_cfg.field.path = args_cli.field_path
+        if hasattr(env_cfg, "scene") and getattr(env_cfg.scene, "mesh_obstacle", None) is not None:
+            env_cfg.scene.mesh_obstacle.source_path = str(Path(args_cli.field_path) / "obs.obj")
 
     agent_cfg = update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.seed = agent_cfg.seed

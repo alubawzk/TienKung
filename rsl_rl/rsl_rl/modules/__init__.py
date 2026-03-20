@@ -20,6 +20,7 @@
 
 from .actor_critic import ActorCritic
 from .actor_critic_recurrent import ActorCriticRecurrent
+from .actor_critic_tanh import ActorCriticTanh
 from .discriminator import Discriminator
 from .normalizer import EmpiricalNormalization
 from .rnd import RandomNetworkDistillation
@@ -28,6 +29,7 @@ from .student_teacher_recurrent import StudentTeacherRecurrent
 
 __all__ = [
     "ActorCritic",
+    "ActorCriticTanh",
     "ActorCriticRecurrent",
     "EmpiricalNormalization",
     "RandomNetworkDistillation",

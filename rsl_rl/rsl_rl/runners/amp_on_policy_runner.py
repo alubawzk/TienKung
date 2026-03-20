@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import inspect
 import statistics
 import time
 from collections import deque
@@ -128,6 +129,15 @@ class AmpOnPolicyRunner:
             # this is used by the symmetry function for handling different observation terms
             self.alg_cfg["symmetry_cfg"]["_env"] = env
 
+        # Compatibility: IsaacLab RL configs may provide an `optimizer` field, but rsl_rl's AMPPPO
+        # expects `learning_rate` (and does not accept `optimizer=` keyword argument).
+        if "optimizer" in self.alg_cfg:
+            opt_cfg = self.alg_cfg.pop("optimizer")
+            if "learning_rate" not in self.alg_cfg and isinstance(opt_cfg, dict):
+                lr = opt_cfg.get("learning_rate", opt_cfg.get("lr", None))
+                if lr is not None:
+                    self.alg_cfg["learning_rate"] = lr
+
         # init amp loader
         amp_data = AMPLoader(
             device,
@@ -147,9 +157,16 @@ class AmpOnPolicyRunner:
         min_std = torch.zeros(len(train_cfg["min_normalized_std"]), device=self.device, requires_grad=False)
 
         # initialize algorithm
-        alg_cfg = dict(self.alg_cfg)
-        alg_class = eval(alg_cfg.pop("class_name"))
-        alg_cfg = _filter_init_kwargs(alg_class.__init__, alg_cfg, f"algorithm {alg_class.__name__}")
+        alg_class = eval(self.alg_cfg.pop("class_name"))
+        # Compatibility: filter out unsupported keys for the underlying algorithm init.
+        # IsaacLab configs may contain extra fields that rsl_rl AMPPPO does not accept.
+        try:
+            allowed = set(inspect.signature(alg_class.__init__).parameters.keys())
+            allowed.discard("self")
+            # We pass `policy/discriminator` and `device`/`multi_gpu_cfg` explicitly in the call below.
+            self.alg_cfg = {k: v for k, v in self.alg_cfg.items() if (k in allowed and k not in {"device", "multi_gpu_cfg"})}
+        except (TypeError, ValueError):
+            pass
         self.alg: AMPPPO = alg_class(
             policy,
             discriminator,

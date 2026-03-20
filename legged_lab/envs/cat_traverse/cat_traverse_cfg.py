@@ -265,18 +265,18 @@ class CatTraverseRewardCfg:
         },
     )
     smoothness_action = RewTerm(func=mdp.cat_smoothness_action, weight=-1.0e-3)
-    headgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=0.0, params={"group_name": "head", "tau": 0.5})
+    headgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=1.0, params={"group_name": "head", "tau": 0.5})
     feetgf = RewTerm(
         func=mdp.cat_pf_alignment_reward,
-        weight=0.0,
+        weight=1.0,
         params={"group_name": "feet", "tau": 0.3, "block_stance_feet": True},
     )
-    handsgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=0.0, params={"group_name": "hands", "tau": 0.5})
-    headdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=0.0, params={"group_name": "head"})
-    feetdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=0.0, params={"group_name": "feet"})
-    handsdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=0.0, params={"group_name": "hands"})
-    kneesdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=0.0, params={"group_name": "knees"})
-    shldsdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=0.0, params={"group_name": "shoulders"})
+    handsgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=1.0, params={"group_name": "hands", "tau": 0.5})
+    headdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=1.0, params={"group_name": "head"})
+    feetdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=1.0, params={"group_name": "feet"})
+    handsdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=1.0, params={"group_name": "hands"})
+    kneesdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=1.0, params={"group_name": "knees"})
+    shldsdf = RewTerm(func=mdp.cat_pf_sdf_penalty, weight=1.0, params={"group_name": "shoulders"})
 
 
 def make_tienkung_proxy_robot_cfg() -> RobotCfg:

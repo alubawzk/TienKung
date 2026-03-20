@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import inspect
 import statistics
 import time
 from collections import deque
@@ -127,10 +128,29 @@ class OnPolicyRunner:
             # this is used by the symmetry function for handling different observation terms
             self.alg_cfg["symmetry_cfg"]["_env"] = env
 
+        # Compatibility: IsaacLab RL configs may provide an `optimizer` field, but rsl_rl's PPO
+        # expects `learning_rate` (and does not accept `optimizer=` keyword argument).
+        if "optimizer" in self.alg_cfg:
+            opt_cfg = self.alg_cfg.pop("optimizer")
+            if "learning_rate" not in self.alg_cfg and isinstance(opt_cfg, dict):
+                # Common key names: lr / learning_rate
+                lr = opt_cfg.get("learning_rate", opt_cfg.get("lr", None))
+                if lr is not None:
+                    self.alg_cfg["learning_rate"] = lr
+
         # initialize algorithm
-        alg_cfg = dict(self.alg_cfg)
-        alg_class = eval(alg_cfg.pop("class_name"))
-        alg_cfg = _filter_init_kwargs(alg_class.__init__, alg_cfg, f"algorithm {alg_class.__name__}")
+        alg_class = eval(self.alg_cfg.pop("class_name"))
+        # Compatibility: filter out unsupported keys for the underlying algorithm init.
+        # IsaacLab configs may contain extra fields (e.g., share_cnn_encoders) that rsl_rl PPO
+        # does not accept.
+        try:
+            allowed = set(inspect.signature(alg_class.__init__).parameters.keys())
+            allowed.discard("self")
+            # We pass `policy` and `device`/`multi_gpu_cfg` explicitly in the call below.
+            self.alg_cfg = {k: v for k, v in self.alg_cfg.items() if (k in allowed and k not in {"device", "multi_gpu_cfg"})}
+        except (TypeError, ValueError):
+            # If signature introspection fails, fall back to the raw config.
+            pass
         self.alg: PPO | Distillation = alg_class(
             policy, device=self.device, **alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
         )

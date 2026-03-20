@@ -167,6 +167,7 @@ class AmpOnPolicyRunner:
             self.alg_cfg = {k: v for k, v in self.alg_cfg.items() if (k in allowed and k not in {"device", "multi_gpu_cfg"})}
         except (TypeError, ValueError):
             pass
+        # `self.alg_cfg` 已在上方完成了键过滤/兼容处理；这里直接展开即可。
         self.alg: AMPPPO = alg_class(
             policy,
             discriminator,
@@ -174,7 +175,7 @@ class AmpOnPolicyRunner:
             amp_normalizer,
             device=self.device,
             min_std=min_std,
-            **alg_cfg,
+            **self.alg_cfg,
             multi_gpu_cfg=self.multi_gpu_cfg,
         )
 

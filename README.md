@@ -134,17 +134,17 @@ nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_
 
 PYTHONPATH=/home/amax/Desktop/Click-and-Traverse/TienKung:$PYTHONPATH \
 
-CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/narrow0 --logger tensorboard --num_envs 4096 --max_iterations 5000 --run_name Narrow0_baseline --headless >my_output0.log 2>&1 &
-3221906
+CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_baseline --headless >my_output0.log 2>&1 &
+3350259
 
-CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/ceil0 --logger tensorboard --num_envs 4096 --max_iterations 5000 --run_name Ceil0_baseline --headless >my_output1.log 2>&1 &
-3223543
+CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/ceil0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Ceil0_baseline --headless >my_output1.log 2>&1 &
+3351552
 
-CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 4096 --max_iterations 5000 --run_name Hole_baseline --headless >my_output2.log 2>&1 &
-3223844
+CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_baseline --headless >my_output2.log 2>&1 &
+3351858
 
-CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bar0 --logger tensorboard --num_envs 4096 --max_iterations 5000 --run_name Bar0_baseline --headless >my_output3.log 2>&1 &
-
+CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bar0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bar0_baseline --headless >my_output3.log 2>&1 &
+3352156
 
 python legged_lab/scripts/train.py \
   --task cat_traverse_g1_pri \

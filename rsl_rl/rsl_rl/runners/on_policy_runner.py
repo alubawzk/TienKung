@@ -151,8 +151,9 @@ class OnPolicyRunner:
         except (TypeError, ValueError):
             # If signature introspection fails, fall back to the raw config.
             pass
+        # `self.alg_cfg` 已在上方完成了键过滤/兼容处理；这里直接展开即可。
         self.alg: PPO | Distillation = alg_class(
-            policy, device=self.device, **alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
+            policy, device=self.device, **self.alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
         )
 
         # store training configuration

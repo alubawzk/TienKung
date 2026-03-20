@@ -249,6 +249,26 @@ def cat_body_rotation(env, yaw_cmd_max: float = 0.5) -> torch.Tensor:
     return torch.nan_to_num(torch.exp(-5.0 * (axis_roll_err + axis_yaw_err)))
 
 
+def cat_feet_rotation(env) -> torch.Tensor:
+    field = _cat_field(env)
+    knee_body_ids = _cat_probe_body_ids(env, "knees")
+    foot_body_ids = _cat_probe_body_ids(env, "feet")
+    knee_rot_w = _quat_to_matrix(env.robot.data.body_quat_w[:, knee_body_ids, :])
+    foot_rot_w = _quat_to_matrix(env.robot.data.body_quat_w[:, foot_body_ids, :])
+    world_to_nav = field["nav_to_world_rot"].transpose(1, 2).unsqueeze(1)
+    knee_rot_nav = torch.matmul(world_to_nav, knee_rot_w)
+    foot_rot_nav = torch.matmul(world_to_nav, foot_rot_w)
+
+    knees_roll_err = torch.sum(torch.abs(knee_rot_nav[:, :, 2, 1]), dim=1)
+    knees_yaw_err = torch.sum(torch.abs(knee_rot_nav[:, :, 0, 1]), dim=1)
+    ankles_roll_err = torch.sum(torch.abs(foot_rot_nav[:, :, 1, 2]), dim=1)
+    ankles_pitch_err = torch.sum(torch.abs(foot_rot_nav[:, :, 0, 2]), dim=1)
+    ankles_yaw_err = torch.sum(torch.square(foot_rot_nav[:, :, 0, 1]), dim=1)
+    return torch.nan_to_num(
+        torch.exp(-(knees_roll_err + knees_yaw_err + ankles_roll_err + ankles_pitch_err + ankles_yaw_err))
+    )
+
+
 def cat_pf_alignment_reward(
     env,
     group_name: str,

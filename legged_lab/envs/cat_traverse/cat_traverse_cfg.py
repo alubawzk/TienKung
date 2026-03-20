@@ -241,6 +241,7 @@ class CatTraverseRewardCfg:
     tracking_root_field = RewTerm(func=mdp.cat_tracking_root_field, weight=1.0)
     body_motion = RewTerm(func=mdp.cat_body_motion, weight=-0.5)
     body_rotation = RewTerm(func=mdp.cat_body_rotation, weight=1.0, params={"yaw_cmd_max": 0.5})
+    feet_rotation = RewTerm(func=mdp.cat_feet_rotation, weight=0.0)
     foot_contact = RewTerm(func=mdp.cat_foot_contact, weight=-1.0)
     foot_clearance = RewTerm(func=mdp.cat_foot_clearance, weight=-15.0, params={"foot_height_stance": 0.0})
     foot_slip = RewTerm(func=mdp.cat_foot_slip, weight=-0.5)
@@ -318,6 +319,7 @@ def make_g1_cat_reward_cfg() -> CatTraverseRewardCfg:
     """Reward profile matching the G1 CAT articulation naming."""
 
     return CatTraverseRewardCfg(
+        feet_rotation=RewTerm(func=mdp.cat_feet_rotation, weight=0.0),
         straight_knee=RewTerm(
             func=mdp.cat_straight_knee,
             weight=-30.0,
@@ -326,9 +328,22 @@ def make_g1_cat_reward_cfg() -> CatTraverseRewardCfg:
     )
 
 
+def make_g1_cat_pri_reward_cfg() -> CatTraverseRewardCfg:
+    return CatTraverseRewardCfg(
+        feet_rotation=RewTerm(func=mdp.cat_feet_rotation, weight=1.0),
+        foot_balance=RewTerm(func=mdp.cat_foot_balance, weight=-10.0),
+        straight_knee=RewTerm(
+            func=mdp.cat_straight_knee,
+            weight=-30.0,
+            params={"joint_patterns": [".*_knee_joint"]},
+        ),
+    )
+
+
 @configclass
 class CatTraverseEnvCfg:
     device: str = "cuda:0"
+    variant: str = "cat"
     field: CatTraverseFieldCfg = CatTraverseFieldCfg()
     # Default stays on the current TienKung2Lite proxy mapping so the task keeps
     # resolving with the existing robot asset. Use make_g1_cat_site_env_cfg(...)
@@ -477,6 +492,21 @@ def apply_g1_cat_site_profile(cfg: CatTraverseEnvCfg) -> CatTraverseEnvCfg:
     return updated_cfg
 
 
+def apply_g1_cat_pri_profile(cfg: CatTraverseEnvCfg) -> CatTraverseEnvCfg:
+    updated_cfg = apply_g1_cat_site_profile(cfg)
+    updated_cfg.variant = "cat_pri"
+    updated_cfg.reward = make_g1_cat_pri_reward_cfg()
+    updated_cfg.gait = CatTraverseGaitCfg(gait_bound=0.6, freq_range=(1.3, 1.5), foot_height_range=(0.05, 0.05))
+    updated_cfg.command = CatTraverseCommandCfg(
+        root_gain=0.6,
+        output_scale=1.0,
+        stop_speed_threshold=0.2,
+        stop_hold_steps=50,
+        stop_timestep_reset=100,
+    )
+    return updated_cfg
+
+
 def make_g1_cat_site_env_cfg(scene_robot=None) -> CatTraverseEnvCfg:
     """Build a CAT env cfg pre-wired for the G1 CAT site layout.
 
@@ -495,6 +525,12 @@ def make_unitree_g1_cat_env_cfg() -> CatTraverseEnvCfg:
     """Build a CAT env cfg bound to the vendored Unitree G1 IsaacLab asset."""
 
     return make_g1_cat_site_env_cfg(UNITREE_G1_CFG)
+
+
+def make_unitree_g1_cat_pri_env_cfg() -> CatTraverseEnvCfg:
+    cfg = apply_g1_cat_pri_profile(CatTraverseEnvCfg())
+    cfg.scene.robot = UNITREE_G1_CFG
+    return cfg
 
 
 @configclass

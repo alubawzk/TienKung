@@ -471,6 +471,28 @@ class CatTraverseEnv(BaseEnv):
         command[stop_mask] = 0.0
         return command
 
+    def _flatten_cat_pri_pf_actor(
+        self, gf_world_raw: torch.Tensor, bf_world_raw: torch.Tensor, sdf: torch.Tensor
+    ) -> torch.Tensor:
+        return torch.cat(
+            (
+                self._group(gf_world_raw, "head").reshape(self.num_envs, -1),
+                self._group(bf_world_raw, "head").reshape(self.num_envs, -1),
+                self._group(sdf, "head").reshape(self.num_envs, -1),
+                self._group(gf_world_raw, "feet").reshape(self.num_envs, -1),
+                self._group(bf_world_raw, "feet").reshape(self.num_envs, -1),
+                self._group(sdf, "feet").reshape(self.num_envs, -1),
+                self._group(gf_world_raw, "hands").reshape(self.num_envs, -1),
+                self._group(bf_world_raw, "hands").reshape(self.num_envs, -1),
+                self._group(sdf, "hands").reshape(self.num_envs, -1),
+                self._group(bf_world_raw, "knees").reshape(self.num_envs, -1),
+                self._group(sdf, "knees").reshape(self.num_envs, -1),
+                self._group(bf_world_raw, "shoulders").reshape(self.num_envs, -1),
+                self._group(sdf, "shoulders").reshape(self.num_envs, -1),
+            ),
+            dim=-1,
+        )
+
     def _normalize_pf_vectors(
         self,
         gf_world: torch.Tensor,
@@ -538,6 +560,7 @@ class CatTraverseEnv(BaseEnv):
         current_gf_raw = current_sample["gf"]
         current_bf_raw = current_sample["bf"]
         current_sdf = current_sample["sdf"]
+        current_rtf = self._group(current_gf_raw, "pelvis").squeeze(1)
 
         update_mask = torch.remainder(self.episode_length_buf - 1, self.cfg.delay.update_interval_steps) == 0
         update_mask |= self.episode_length_buf <= 1
@@ -599,18 +622,23 @@ class CatTraverseEnv(BaseEnv):
             "delayed_positions_local": delayed_positions_local,
             "current_sdf": current_sdf,
             "current_obs": current_sample["obs"],
+            "current_gf_raw": current_gf_raw,
+            "current_bf_raw": current_bf_raw,
             "current_gf_world": current_gf_world,
             "current_bf_world": current_bf_world,
             "current_gf_nav": current_gf_nav,
             "current_bf_nav": current_bf_nav,
             "delay_sdf": delayed_sdf,
             "delay_obs": delayed_sample["obs"],
+            "delay_gf_raw": delayed_gf_raw,
+            "delay_bf_raw": delayed_bf_raw,
             "delay_gf_world": delayed_gf_world,
             "delay_bf_world": delayed_bf_world,
             "delay_gf_nav": delayed_gf_nav,
             "delay_bf_nav": delayed_bf_nav,
             "actor_sdf": actor_sdf,
             "actor_bf_nav": actor_bf_nav,
+            "rtf": current_rtf,
             "command_current_raw_world": command_current_raw_world,
             "command_current_world": command_current_world,
             "command_current_nav": command_current_nav,
@@ -707,66 +735,109 @@ class CatTraverseEnv(BaseEnv):
         feet_contact = (
             torch.max(torch.norm(net_contact_forces[:, :, self.feet_cfg.body_ids], dim=-1), dim=1)[0] > 0.5
         ).float()
+        root_lin_vel_b = self.robot.data.root_lin_vel_b * self.obs_scales.lin_vel
 
-        actor_pf_obs = self._flatten_pf_groups(field["delay_gf_nav"], field["actor_bf_nav"], field["actor_sdf"])
-        critic_pf_obs = self._flatten_pf_groups(field["current_gf_world"], field["current_bf_world"], field["current_sdf"])
         head_pos_w = self._group(field["positions_w"], "head").reshape(self.num_envs, -1)
         head_vel_w = self._group(field["velocities_w"], "head").reshape(self.num_envs, -1)
-        pelvis_pos_w = self._group(field["positions_w"], "pelvis").reshape(self.num_envs, -1)
-        torso_pos_w = self._group(field["positions_w"], "torso").reshape(self.num_envs, -1)
         feet_pos_w = self._group(field["positions_w"], "feet").reshape(self.num_envs, -1)
         feet_vel_w = self._group(field["velocities_w"], "feet").reshape(self.num_envs, -1)
         hands_pos_w = self._group(field["positions_w"], "hands").reshape(self.num_envs, -1)
         hands_vel_w = self._group(field["velocities_w"], "hands").reshape(self.num_envs, -1)
-        rfi_action_scale = self._rfi_lim_scale[:, self.action_joint_ids]
+        if self.cfg.variant == "cat_pri":
+            actor_pf_obs = self._flatten_cat_pri_pf_actor(
+                field["current_gf_raw"], field["current_bf_raw"], field["current_sdf"]
+            )
+            actor_obs = torch.cat(
+                (
+                    ang_vel,
+                    projected_gravity,
+                    joint_pos,
+                    joint_vel,
+                    last_action,
+                    motor_targets,
+                    field["command_current_world"] * self.obs_scales.commands,
+                    self._foot_height_target,
+                    gait_phase,
+                    root_lin_vel_b,
+                    actor_pf_obs,
+                    head_pos_w,
+                    head_vel_w,
+                    feet_pos_w,
+                    feet_vel_w,
+                    hands_pos_w,
+                    hands_vel_w,
+                    field["torso_nav_rpy"],
+                    self._gait_mask,
+                    feet_contact,
+                ),
+                dim=-1,
+            )
+            critic_obs = torch.cat(
+                (
+                    actor_obs,
+                    field["rtf"],
+                    self._kp_scale,
+                    self._kd_scale,
+                    self._rfi_lim_scale,
+                ),
+                dim=-1,
+            )
+        else:
+            actor_pf_obs = self._flatten_pf_groups(field["delay_gf_nav"], field["actor_bf_nav"], field["actor_sdf"])
+            critic_pf_obs = self._flatten_pf_groups(
+                field["current_gf_world"], field["current_bf_world"], field["current_sdf"]
+            )
+            pelvis_pos_w = self._group(field["positions_w"], "pelvis").reshape(self.num_envs, -1)
+            torso_pos_w = self._group(field["positions_w"], "torso").reshape(self.num_envs, -1)
+            rfi_action_scale = self._rfi_lim_scale[:, self.action_joint_ids]
 
-        actor_obs = torch.cat(
-            (
-                ang_vel,
-                projected_gravity,
-                joint_pos,
-                joint_vel,
-                last_action,
-                motor_targets,
-                field["command_actor_nav"] * self.obs_scales.commands,
-                self._foot_height_target,
-                gait_phase,
-                actor_pf_obs,
-            ),
-            dim=-1,
-        )
+            actor_obs = torch.cat(
+                (
+                    ang_vel,
+                    projected_gravity,
+                    joint_pos,
+                    joint_vel,
+                    last_action,
+                    motor_targets,
+                    field["command_actor_nav"] * self.obs_scales.commands,
+                    self._foot_height_target,
+                    gait_phase,
+                    actor_pf_obs,
+                ),
+                dim=-1,
+            )
 
-        critic_obs = torch.cat(
-            (
-                ang_vel,
-                projected_gravity,
-                joint_pos,
-                joint_vel,
-                last_action,
-                motor_targets,
-                field["command_current_world"] * self.obs_scales.commands,
-                self._foot_height_target,
-                gait_phase,
-                critic_pf_obs,
-                self.robot.data.root_lin_vel_b * self.obs_scales.lin_vel,
-                head_pos_w,
-                head_vel_w,
-                pelvis_pos_w,
-                torso_pos_w,
-                feet_pos_w,
-                feet_vel_w,
-                hands_pos_w,
-                hands_vel_w,
-                field["torso_nav_rpy"],
-                self._gait_mask,
-                feet_contact,
-                self._kp_scale,
-                self._kd_scale,
-                rfi_action_scale,
-                field["torso_ang_vel_nav"],
-            ),
-            dim=-1,
-        )
+            critic_obs = torch.cat(
+                (
+                    ang_vel,
+                    projected_gravity,
+                    joint_pos,
+                    joint_vel,
+                    last_action,
+                    motor_targets,
+                    field["command_current_world"] * self.obs_scales.commands,
+                    self._foot_height_target,
+                    gait_phase,
+                    critic_pf_obs,
+                    root_lin_vel_b,
+                    head_pos_w,
+                    head_vel_w,
+                    pelvis_pos_w,
+                    torso_pos_w,
+                    feet_pos_w,
+                    feet_vel_w,
+                    hands_pos_w,
+                    hands_vel_w,
+                    field["torso_nav_rpy"],
+                    self._gait_mask,
+                    feet_contact,
+                    self._kp_scale,
+                    self._kd_scale,
+                    rfi_action_scale,
+                    field["torso_ang_vel_nav"],
+                ),
+                dim=-1,
+            )
 
         return actor_obs, critic_obs
 

@@ -23,6 +23,7 @@ from legged_lab.envs.cat_traverse import (
     CatTraverseEnv,
     CatTraverseEnvCfg,
     make_unitree_g1_cat_env_cfg,
+    make_unitree_g1_cat_pri_env_cfg,
 )
 from legged_lab.envs.tienkung.run_cfg import TienKungRunAgentCfg, TienKungRunFlatEnvCfg
 from legged_lab.envs.tienkung.run_with_sensor_cfg import (
@@ -52,6 +53,7 @@ task_registry.register("walk", Mini3_Env, Mini3_WalkFlatEnvCfg(), Mini3_WalkAgen
 
 task_registry.register("cat_traverse", CatTraverseEnv, CatTraverseEnvCfg(), CatTraverseAgentCfg())
 task_registry.register("cat_traverse_g1", CatTraverseEnv, make_unitree_g1_cat_env_cfg(), CatTraverseAgentCfg())
+task_registry.register("cat_traverse_g1_pri", CatTraverseEnv, make_unitree_g1_cat_pri_env_cfg(), CatTraverseAgentCfg())
 task_registry.register("tienkun_walk", TienKungEnv, TienKungWalkFlatEnvCfg(), TienKungWalkAgentCfg())
 task_registry.register("tienkun_run", TienKungEnv, TienKungRunFlatEnvCfg(), TienKungRunAgentCfg())
 task_registry.register(

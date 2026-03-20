@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 import statistics
 import time
@@ -37,6 +38,25 @@ from rsl_rl.modules import (
     StudentTeacherRecurrent,
 )
 from rsl_rl.utils import AMPLoader, Normalizer, store_code_state
+
+
+def _filter_init_kwargs(target, kwargs: dict, context: str) -> dict:
+    signature = inspect.signature(target)
+    parameters = signature.parameters
+    accepts_var_kwargs = any(param.kind == inspect.Parameter.VAR_KEYWORD for param in parameters.values())
+    if accepts_var_kwargs:
+        return kwargs
+
+    allowed = {
+        name
+        for name, param in parameters.items()
+        if name != "self" and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+    filtered = {key: value for key, value in kwargs.items() if key in allowed}
+    dropped = sorted(set(kwargs) - set(filtered))
+    if dropped:
+        print(f"[INFO] Dropping unsupported {context} config keys: {dropped}")
+    return filtered
 
 
 class AmpOnPolicyRunner:
@@ -83,9 +103,11 @@ class AmpOnPolicyRunner:
             num_privileged_obs = num_obs
 
         # evaluate the policy class
-        policy_class = eval(self.policy_cfg.pop("class_name"))
+        policy_cfg = dict(self.policy_cfg)
+        policy_class = eval(policy_cfg.pop("class_name"))
+        policy_cfg = _filter_init_kwargs(policy_class.__init__, policy_cfg, f"policy {policy_class.__name__}")
         policy: ActorCritic | ActorCriticRecurrent | StudentTeacher | StudentTeacherRecurrent = policy_class(
-            num_obs, num_privileged_obs, self.env.num_actions, **self.policy_cfg
+            num_obs, num_privileged_obs, self.env.num_actions, **policy_cfg
         ).to(self.device)
 
         # resolve dimension of rnd gated state
@@ -125,7 +147,9 @@ class AmpOnPolicyRunner:
         min_std = torch.zeros(len(train_cfg["min_normalized_std"]), device=self.device, requires_grad=False)
 
         # initialize algorithm
-        alg_class = eval(self.alg_cfg.pop("class_name"))
+        alg_cfg = dict(self.alg_cfg)
+        alg_class = eval(alg_cfg.pop("class_name"))
+        alg_cfg = _filter_init_kwargs(alg_class.__init__, alg_cfg, f"algorithm {alg_class.__name__}")
         self.alg: AMPPPO = alg_class(
             policy,
             discriminator,
@@ -133,7 +157,7 @@ class AmpOnPolicyRunner:
             amp_normalizer,
             device=self.device,
             min_std=min_std,
-            **self.alg_cfg,
+            **alg_cfg,
             multi_gpu_cfg=self.multi_gpu_cfg,
         )
 

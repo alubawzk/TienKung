@@ -18,6 +18,7 @@
 
 import argparse
 import os
+from pathlib import Path
 
 import torch
 from isaaclab.app import AppLauncher
@@ -36,6 +37,12 @@ parser.add_argument("--seed", type=int, default=None, help="Seed used for the en
 parser.add_argument("--vx", type=float, default=1.0, help="Forward velocity command (m/s).")
 parser.add_argument("--vy", type=float, default=0.0, help="Lateral velocity command (m/s).")
 parser.add_argument("--vz", type=float, default=0.0, help="Yaw angular velocity command (rad/s).")
+parser.add_argument(
+    "--field_path",
+    type=str,
+    default=None,
+    help="Override CAT field asset directory, e.g. data/assets/TypiObs/narrow0.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -57,18 +64,41 @@ from legged_lab.envs import *  # noqa:F401, F403
 from legged_lab.utils.cli_args import update_rsl_rl_cfg
 
 
+def _freeze_cat_reset_for_play(env_cfg):
+    events = getattr(getattr(env_cfg, "domain_rand", None), "events", None)
+    if events is None:
+        return
+
+    reset_base = getattr(events, "reset_base", None)
+    if reset_base is not None and getattr(reset_base, "params", None) is not None:
+        pose_range = reset_base.params.get("pose_range")
+        if pose_range is not None:
+            reset_base.params["pose_range"] = {key: (0.0, 0.0) for key in pose_range.keys()}
+        velocity_range = reset_base.params.get("velocity_range")
+        if velocity_range is not None:
+            reset_base.params["velocity_range"] = {key: (0.0, 0.0) for key in velocity_range.keys()}
+
+    reset_robot_joints = getattr(events, "reset_robot_joints", None)
+    if reset_robot_joints is not None and getattr(reset_robot_joints, "params", None) is not None:
+        if "position_range" in reset_robot_joints.params:
+            reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        if "velocity_range" in reset_robot_joints.params:
+            reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
+
+
 def play():
     runner: OnPolicyRunner
     env_cfg: BaseEnvCfg  # noqa:F405
 
     env_class_name = args_cli.task
     env_cfg, agent_cfg = task_registry.get_cfgs(env_class_name)
+    is_cat_task = env_class_name.startswith("cat_traverse")
 
     env_cfg.noise.add_noise = False
     env_cfg.domain_rand.events.push_robot = None
     env_cfg.scene.max_episode_length_s = 40.0
-    env_cfg.scene.num_envs = 50
-    env_cfg.scene.env_spacing = 2.5
+    env_cfg.scene.num_envs = 1 if is_cat_task else 50
+    env_cfg.scene.env_spacing = 6.0 if is_cat_task else 2.5
     env_cfg.commands.rel_standing_envs = 0.0
     env_cfg.commands.ranges.lin_vel_x = (args_cli.vx, args_cli.vx)
     env_cfg.commands.ranges.lin_vel_y = (args_cli.vy, args_cli.vy)
@@ -86,6 +116,16 @@ def play():
 
     if args_cli.num_envs is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
+
+    if args_cli.field_path is not None:
+        if not hasattr(env_cfg, "field") or not hasattr(env_cfg.field, "path"):
+            raise ValueError(f"Task '{env_class_name}' does not support '--field_path'.")
+        env_cfg.field.path = args_cli.field_path
+        if hasattr(env_cfg, "scene") and getattr(env_cfg.scene, "mesh_obstacle", None) is not None:
+            env_cfg.scene.mesh_obstacle.source_path = str(Path(args_cli.field_path) / "obs.obj")
+
+    if is_cat_task:
+        _freeze_cat_reset_for_play(env_cfg)
 
     agent_cfg = update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.seed = agent_cfg.seed
@@ -106,10 +146,15 @@ def play():
     policy = runner.get_inference_policy(device=env.device)
 
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
+    os.makedirs(export_model_dir, exist_ok=True)
     export_policy_as_jit(runner.alg.policy, runner.obs_normalizer, path=export_model_dir, filename="policy.pt")
     export_policy_as_onnx(
         runner.alg.policy, normalizer=runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
     )
+    if is_cat_task:
+        print(f"[INFO] CAT field path: {env_cfg.field.path}")
+        print("[INFO] CAT play resets use a fixed centered spawn with default joint posture.")
+    print(f"[INFO] Exported policy directory: {export_model_dir}")
 
     if not args_cli.headless:
         from legged_lab.utils.keyboard import Keyboard

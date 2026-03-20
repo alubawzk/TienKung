@@ -378,6 +378,7 @@ class CatTraverseEnv(BaseEnv):
         during_stop = (~before_stop) & (stop_timestep > 0)
         after_stop = (~before_stop) & (~during_stop)
         move_to_stop = last_task_mask & (~task_mask) & before_stop
+        resume_from_stop = after_stop & task_mask
 
         updated_stop_timestep = torch.where(
             move_to_stop,
@@ -385,12 +386,21 @@ class CatTraverseEnv(BaseEnv):
             stop_timestep,
         )
         updated_stop_timestep = torch.where(during_stop, updated_stop_timestep - 1, updated_stop_timestep)
+        updated_stop_timestep = torch.where(
+            resume_from_stop,
+            torch.full_like(updated_stop_timestep, int(self.cfg.command.stop_timestep_reset)),
+            updated_stop_timestep,
+        )
         self._stop_timestep.copy_(updated_stop_timestep)
 
-        effective_command = torch.where(before_stop.unsqueeze(-1), command_current_raw_world, torch.zeros_like(command_current_raw_world))
-        effective_command[:, 0] = torch.where(after_stop, 0.0, 1.0)
+        active_command_mask = before_stop | resume_from_stop
+        effective_command = torch.where(
+            active_command_mask.unsqueeze(-1), command_current_raw_world, torch.zeros_like(command_current_raw_world)
+        )
+        effective_after_stop = after_stop & (~resume_from_stop)
+        effective_command[:, 0] = torch.where(effective_after_stop, 0.0, 1.0)
         self._current_command_world.copy_(effective_command)
-        return effective_command, after_stop
+        return effective_command, effective_after_stop
 
     def _rotate_local_offsets(self, body_quat_w: torch.Tensor) -> torch.Tensor:
         if self._probe_offsets_local is None:

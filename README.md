@@ -145,6 +145,13 @@ CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_trave
 
 CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bar0 --logger tensorboard --num_envs 4096 --max_iterations 5000 --run_name Bar0_baseline --headless >my_output3.log 2>&1 &
 
+
+python legged_lab/scripts/train.py \
+  --task cat_traverse_g1_pri \
+  --field_path data/assets/TypiObs/narrow0 \
+  --logger tensorboard \
+  --num_envs 9 \
+  --max_iterations 3000
 ```
 
 ### Play
@@ -153,7 +160,37 @@ Run the trained policy.
 
 ```bash
 python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_10-38-32_Add_JointArmature_500Hz --vx 0.0
+
+PYTHONPATH=/home/amax/Desktop/Click-and-Traverse/TienKung:$PYTHONPATH \
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/narrow0 \
+  --num_envs 1 \
+  --load_run <your_cat_run_dir>
+
+PYTHONPATH=/home/amax/Desktop/Click-and-Traverse/TienKung:$PYTHONPATH \
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1_pri \
+  --field_path data/assets/TypiObs/narrow0 \
+  --num_envs 1 \
+  --load_run <your_cat_pri_run_dir>
+
+
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/hole \
+  --num_envs 1 \
+  --load_run 2026-03-20_15-47-13_Hole_baseline
+
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/narrow0 \
+  --num_envs 1 \
+  --load_run 2026-03-20_15-43-36_Narrow0_baseline
 ```
+
+
+For CAT tasks, `--field_path` replaces the old MuJoCo `--obs_path` usage and points both the PF assets and the imported `obs.obj` mesh to the same obstacle directory.
 
 ### Sim2Sim(MuJoCo)
 

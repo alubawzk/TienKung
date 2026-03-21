@@ -146,6 +146,9 @@ CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_trave
 CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bar0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bar0_baseline --headless >my_output3.log 2>&1 &
 3352156
 
+CUDA_VISIBLE_DEVICES=4 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bend --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bend_baseline --headless >my_output4.log 2>&1 &
+3355547
+
 python legged_lab/scripts/train.py \
   --task cat_traverse_g1_pri \
   --field_path data/assets/TypiObs/narrow0 \

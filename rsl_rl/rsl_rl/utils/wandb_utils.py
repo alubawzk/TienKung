@@ -34,6 +34,7 @@ class WandbSummaryWriter(SummaryWriter):
 
     def __init__(self, log_dir: str, flush_secs: int, cfg):
         super().__init__(log_dir, flush_secs)
+        self._stopped = False
 
         # Get the run name
         run_name = os.path.split(log_dir)[-1]
@@ -79,7 +80,14 @@ class WandbSummaryWriter(SummaryWriter):
         wandb.log({self._map_path(tag): scalar_value}, step=global_step)
 
     def stop(self):
+        if self._stopped:
+            return
+        self._stopped = True
         wandb.finish()
+
+    def close(self):
+        super().close()
+        self.stop()
 
     def log_config(self, env_cfg, runner_cfg, alg_cfg, policy_cfg):
         self.store_config(env_cfg, runner_cfg, alg_cfg, policy_cfg)

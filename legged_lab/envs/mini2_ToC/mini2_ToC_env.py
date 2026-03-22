@@ -70,6 +70,7 @@ class Mini2_ToC_Env(VecEnv):
         self.step_dt = self.cfg.sim.decimation * self.cfg.sim.dt
         self.num_envs = self.cfg.scene.num_envs
         self.seed(cfg.scene.seed)
+        self._is_closed = False
 
         sim_cfg = sim_utils.SimulationCfg(
             device=cfg.device,
@@ -628,6 +629,32 @@ class Mini2_ToC_Env(VecEnv):
             ),
             dim=-1,
         )
+
+    def close(self):
+        if self._is_closed:
+            return
+
+        for attr_name in (
+            "command_generator",
+            "reward_manager",
+            "event_manager",
+            "height_scanner",
+            "contact_sensor",
+            "robot",
+            "scene",
+        ):
+            if hasattr(self, attr_name):
+                delattr(self, attr_name)
+
+        clear_all_callbacks = getattr(self.sim, "clear_all_callbacks", None)
+        if callable(clear_all_callbacks):
+            clear_all_callbacks()
+
+        clear_instance = getattr(self.sim, "clear_instance", None)
+        if callable(clear_instance):
+            clear_instance()
+
+        self._is_closed = True
 
     @staticmethod
     def seed(seed: int = -1) -> int:

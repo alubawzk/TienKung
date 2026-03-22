@@ -69,59 +69,69 @@ torch.backends.cudnn.benchmark = False
 
 def train():
     runner: OnPolicyRunner | AmpOnPolicyRunner
+    env = None
+    runner = None
 
-    env_class_name = args_cli.task
-    env_cfg, agent_cfg = task_registry.get_cfgs(env_class_name)
-    env_class = task_registry.get_task_class(env_class_name)
+    try:
+        env_class_name = args_cli.task
+        env_cfg, agent_cfg = task_registry.get_cfgs(env_class_name)
+        env_class = task_registry.get_task_class(env_class_name)
 
-    if args_cli.num_envs is not None:
-        env_cfg.scene.num_envs = args_cli.num_envs
+        if args_cli.num_envs is not None:
+            env_cfg.scene.num_envs = args_cli.num_envs
 
-    if args_cli.field_path is not None:
-        if not hasattr(env_cfg, "field") or not hasattr(env_cfg.field, "path"):
-            raise ValueError(f"Task '{env_class_name}' does not support '--field_path'.")
-        env_cfg.field.path = args_cli.field_path
-        if hasattr(env_cfg, "scene") and getattr(env_cfg.scene, "mesh_obstacle", None) is not None:
-            env_cfg.scene.mesh_obstacle.source_path = str(Path(args_cli.field_path) / "obs.obj")
+        if args_cli.field_path is not None:
+            if not hasattr(env_cfg, "field") or not hasattr(env_cfg.field, "path"):
+                raise ValueError(f"Task '{env_class_name}' does not support '--field_path'.")
+            env_cfg.field.path = args_cli.field_path
+            if hasattr(env_cfg, "scene") and getattr(env_cfg.scene, "mesh_obstacle", None) is not None:
+                env_cfg.scene.mesh_obstacle.source_path = str(Path(args_cli.field_path) / "obs.obj")
 
-    agent_cfg = update_rsl_rl_cfg(agent_cfg, args_cli)
-    env_cfg.scene.seed = agent_cfg.seed
+        agent_cfg = update_rsl_rl_cfg(agent_cfg, args_cli)
+        env_cfg.scene.seed = agent_cfg.seed
 
-    if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
-        agent_cfg.device = f"cuda:{app_launcher.local_rank}"
+        if args_cli.distributed:
+            env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+            agent_cfg.device = f"cuda:{app_launcher.local_rank}"
 
-        # set seed to have diversity in different threads
-        seed = agent_cfg.seed + app_launcher.local_rank
-        env_cfg.scene.seed = seed
-        agent_cfg.seed = seed
+            # set seed to have diversity in different threads
+            seed = agent_cfg.seed + app_launcher.local_rank
+            env_cfg.scene.seed = seed
+            agent_cfg.seed = seed
 
-    env = env_class(env_cfg, args_cli.headless)
+        env = env_class(env_cfg, args_cli.headless)
 
-    log_root_path = os.path.join("logs", agent_cfg.experiment_name)
-    log_root_path = os.path.abspath(log_root_path)
-    print(f"[INFO] Logging experiment in directory: {log_root_path}")
+        log_root_path = os.path.join("logs", agent_cfg.experiment_name)
+        log_root_path = os.path.abspath(log_root_path)
+        print(f"[INFO] Logging experiment in directory: {log_root_path}")
 
-    log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    if agent_cfg.run_name:
-        log_dir += f"_{agent_cfg.run_name}"
-    log_dir = os.path.join(log_root_path, log_dir)
-    runner_class: OnPolicyRunner | AmpOnPolicyRunner = eval(agent_cfg.runner_class_name)
-    runner = runner_class(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+        log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if agent_cfg.run_name:
+            log_dir += f"_{agent_cfg.run_name}"
+        log_dir = os.path.join(log_root_path, log_dir)
+        runner_class: OnPolicyRunner | AmpOnPolicyRunner = eval(agent_cfg.runner_class_name)
+        runner = runner_class(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
 
-    if agent_cfg.resume:
-        # get path to previous checkpoint
-        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        # load previously trained model
-        runner.load(resume_path)
+        if agent_cfg.resume:
+            # get path to previous checkpoint
+            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            # load previously trained model
+            runner.load(resume_path)
 
-    dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
-    dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
+        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+    finally:
+        if runner is not None and hasattr(runner, "close"):
+            runner.close()
+        if env is not None and hasattr(env, "close"):
+            env.close()
 
 
 if __name__ == "__main__":
-    train()
-    simulation_app.close()
+    try:
+        train()
+    finally:
+        simulation_app.close()

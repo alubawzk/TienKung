@@ -541,6 +541,21 @@ class OnPolicyRunner:
             self.obs_normalizer.eval()
             self.privileged_obs_normalizer.eval()
 
+    def close(self):
+        if self.writer is None:
+            return
+
+        writer = self.writer
+        self.writer = None
+        close_writer = getattr(writer, "close", None)
+        if callable(close_writer):
+            close_writer()
+            return
+
+        stop_writer = getattr(writer, "stop", None)
+        if callable(stop_writer):
+            stop_writer()
+
     def add_git_repo_to_log(self, repo_file_path):
         self.git_status_repos.append(repo_file_path)
 

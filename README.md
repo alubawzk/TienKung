@@ -154,7 +154,7 @@ python legged_lab/scripts/train.py \
   --field_path data/assets/TypiObs/narrow0 \
   --logger tensorboard \
   --num_envs 9 \
-  --max_iterations 3000
+  --max_iterations 5
 ```
 
 ### Play
@@ -185,11 +185,40 @@ python legged_lab/scripts/play.py \
   --num_envs 1 \
   --load_run 2026-03-20_15-47-13_Hole_baseline
 
+# bar
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/bar0 \
+  --num_envs 1 \
+  --load_run 2026-03-20_23-24-49_Bar0_baseline
+
+# ceil
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/ceil0 \
+  --num_envs 1 \
+  --load_run 2026-03-20_23-24-41_Ceil0_baseline
+
+# narrow
 python legged_lab/scripts/play.py \
   --task cat_traverse_g1 \
   --field_path data/assets/TypiObs/narrow0 \
   --num_envs 1 \
-  --load_run 2026-03-20_15-43-36_Narrow0_baseline
+  --load_run 2026-03-20_23-23-14_Narrow0_baseline
+
+# bend
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/bend \
+  --num_envs 1 \
+  --load_run 2026-03-21_16-18-08_Bend_AddBody_motion
+
+# hole
+python legged_lab/scripts/play.py \
+  --task cat_traverse_g1 \
+  --field_path data/assets/TypiObs/hole \
+  --num_envs 1 \
+  --load_run 2026-03-21_16-13-11_Hole_Add_HandHead
 ```
 
 

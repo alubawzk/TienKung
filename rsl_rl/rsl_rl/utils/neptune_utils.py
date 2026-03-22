@@ -45,6 +45,7 @@ class NeptuneSummaryWriter(SummaryWriter):
 
     def __init__(self, log_dir: str, flush_secs: int, cfg):
         super().__init__(log_dir, flush_secs)
+        self._stopped = False
 
         try:
             project = cfg["neptune_project"]
@@ -95,7 +96,14 @@ class NeptuneSummaryWriter(SummaryWriter):
         self.neptune_logger.run[self._map_path(tag)].log(scalar_value, step=global_step)
 
     def stop(self):
+        if self._stopped:
+            return
+        self._stopped = True
         self.neptune_logger.run.stop()
+
+    def close(self):
+        super().close()
+        self.stop()
 
     def log_config(self, env_cfg, runner_cfg, alg_cfg, policy_cfg):
         self.neptune_logger.store_config(env_cfg, runner_cfg, alg_cfg, policy_cfg)

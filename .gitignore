@@ -9,3 +9,4 @@ MUJOCO_LOG.TXT
 .history
 /legged_lab/assets/
 *.log
+exp_setup.md

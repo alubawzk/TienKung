@@ -105,7 +105,7 @@ class LiteRewardCfg:
     feet_too_near = RewTerm(
         func=mdp.feet_too_near_humanoid,
         weight=-2.0,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.13},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.12},
     )
     feet_stumble = RewTerm(
         func=mdp.feet_stumble,
@@ -121,7 +121,7 @@ class LiteRewardCfg:
 
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.15,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",

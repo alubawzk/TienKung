@@ -140,7 +140,7 @@ class SimToSimCfg:
     class sim:
         sim_duration = 100.0
         num_action = 21
-        num_obs_per_step = 81
+        num_obs_per_step = 78
         actor_obs_history_length = 10
         dt = 0.002
         decimation = 10
@@ -384,9 +384,6 @@ class MujocoRunner:
         ]
         # Initial command vel
         self.command_vel = np.array([0.0, 0.0, 0.0])
-        self.lin_vel_sensor_name = self._resolve_sensor_name(
-            ["linear-velocity", "base_link_site_vel", "base_link_site_linvel"]
-        )
         self.ang_vel_sensor_name = self._resolve_sensor_name(["angular-velocity", "base_link_site_angvel"])
         self.orientation_sensor_name = self._resolve_sensor_name(["orientation", "base_link_site_quat"])
         self.obs_history = np.zeros(
@@ -422,7 +419,6 @@ class MujocoRunner:
 
         obs = np.concatenate(
             [
-                self.data.sensor(self.lin_vel_sensor_name).data.astype(np.double),  # 3
                 self.data.sensor(self.ang_vel_sensor_name).data.astype(np.double),  # 3
                 self.quat_rotate_inverse(
                     self.data.sensor(self.orientation_sensor_name).data[[1, 2, 3, 0]].astype(np.double),

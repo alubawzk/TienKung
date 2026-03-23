@@ -134,20 +134,20 @@ nohup python legged_lab/scripts/train.py --task walk --logger tensorboard --max_
 
 PYTHONPATH=/home/amax/Desktop/Click-and-Traverse/TienKung:$PYTHONPATH \
 
-CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_baseline --headless >my_output0.log 2>&1 &
-3350259
+CUDA_VISIBLE_DEVICES=0 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_AddRootTrackingField2 --headless >my_output0.log 2>&1 &
+3993102
 
-CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/ceil0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Ceil0_baseline --headless >my_output1.log 2>&1 &
-3351552
+CUDA_VISIBLE_DEVICES=1 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_AddBodyMotion1.5 --headless >my_output1.log 2>&1 &
+3991508
 
-CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_baseline --headless >my_output2.log 2>&1 &
-3351858
+CUDA_VISIBLE_DEVICES=2 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_AddFeetHandShoulderHead --headless >my_output2.log 2>&1 &
+3989375
 
-CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bar0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bar0_baseline --headless >my_output3.log 2>&1 &
-3352156
+CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/hole --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Hole_Add_RootTrackingField2_BodyMotion1.5 --headless >my_output3.log 2>&1 &
+3994498
 
 CUDA_VISIBLE_DEVICES=4 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bend --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bend_baseline --headless >my_output4.log 2>&1 &
-3355547
+
 
 python legged_lab/scripts/train.py \
   --task cat_traverse_g1_pri \

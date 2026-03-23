@@ -17,8 +17,11 @@
 # and is distributed under the BSD-3-Clause license.
 
 import argparse
+import glob
 import os
+import struct
 import sys
+import threading
 
 import mujoco
 import mujoco_viewer
@@ -26,6 +29,107 @@ import numpy as np
 import torch
 from pynput import keyboard
 import time
+
+JS_EVENT_BUTTON = 0x01
+JS_EVENT_AXIS = 0x02
+JS_EVENT_INIT = 0x80
+JS_EVENT_SIZE = 8
+
+
+class JoystickReader:
+    """Read /dev/input/js* device directly without ROS2 dependency."""
+
+    def __init__(self, device_path=None):
+        self.device_path = device_path
+        self.device_file = None
+        self.axes = {}
+        self.buttons = {}
+        self.running = False
+        self.read_thread = None
+
+    def find_joystick_device(self, target_name=None):
+        devices = sorted(glob.glob("/dev/input/js*"))
+        if not devices:
+            return None
+        if self.device_path and os.path.exists(self.device_path):
+            return self.device_path
+        if target_name:
+            for device in devices:
+                try:
+                    name_path = device.replace("/dev/input/js", "/sys/class/input/js") + "/device/name"
+                    if os.path.exists(name_path):
+                        with open(name_path, "r") as f:
+                            if target_name.upper() in f.read().strip().upper():
+                                return device
+                except Exception:
+                    pass
+        return devices[0]
+
+    def open_device(self, device_path=None, target_name="DF39"):
+        if device_path:
+            self.device_path = device_path
+        else:
+            self.device_path = self.find_joystick_device(target_name)
+        if not self.device_path:
+            all_devices = sorted(glob.glob("/dev/input/js*"))
+            if all_devices:
+                print(f"[JOYSTICK] Devices found but name '{target_name}' not matched: {all_devices}")
+                print(f"[JOYSTICK] Trying first device: {all_devices[0]}")
+                self.device_path = all_devices[0]
+            else:
+                print("[JOYSTICK] No /dev/input/js* devices found. Is the joystick connected?")
+                print("[JOYSTICK] Hint: run 'ls /dev/input/js*' to check.")
+                return False
+        try:
+            self.device_file = open(self.device_path, "rb")
+            return True
+        except PermissionError:
+            print(f"[JOYSTICK] Permission denied: {self.device_path}")
+            print(f"[JOYSTICK] Fix: sudo chmod 666 {self.device_path}")
+            return False
+        except Exception as e:
+            print(f"[JOYSTICK] Failed to open {self.device_path}: {e}")
+            return False
+
+    def _read_loop(self, callback):
+        while self.running:
+            try:
+                data = self.device_file.read(JS_EVENT_SIZE)
+                if len(data) != JS_EVENT_SIZE:
+                    time.sleep(0.001)
+                    continue
+                _time_ms, value, event_type, number = struct.unpack("IhBB", data)
+                if event_type & JS_EVENT_AXIS:
+                    self.axes[number] = value / 32767.0
+                elif event_type & JS_EVENT_BUTTON:
+                    self.buttons[number] = value
+                if callback:
+                    callback({"type": event_type, "value": value, "number": number})
+            except Exception:
+                time.sleep(0.001)
+
+    def start_reading(self, callback=None):
+        if self.running or not self.device_file:
+            return False
+        self.running = True
+        self.read_thread = threading.Thread(target=self._read_loop, args=(callback,), daemon=True)
+        self.read_thread.start()
+        return True
+
+    def get_axis(self, number, default=0.0):
+        return self.axes.get(number, default)
+
+    def get_button(self, number, default=0):
+        return self.buttons.get(number, default)
+
+    def stop(self):
+        self.running = False
+        if self.read_thread and self.read_thread.is_alive():
+            self.read_thread.join(timeout=1.0)
+        if self.device_file:
+            self.device_file.close()
+            self.device_file = None
+
 
 class SimToSimCfg:
     """Configuration class for sim2sim parameters.
@@ -49,7 +153,7 @@ class SimToSimCfg:
         gait_air_ratio_r: float = 0.38
         gait_phase_offset_l: float = 0.38
         gait_phase_offset_r: float = 0.88
-        gait_cycle: float = 0.85
+        gait_cycle: float = 0.55
 
 
 class MujocoRunner:
@@ -83,31 +187,35 @@ class MujocoRunner:
         self.action = np.zeros(self.cfg.sim.num_action)
         self.default_dof_pos = np.array(
             [
-                0,      # right_hip_pitch_joint
-                0,      # right_hip_roll_joint
-                0,      # right_hip_yaw_joint
-                0,      # right_knee_pitch_joint
-                0,      # right_ankle_pitch_joint
-                0,      # right_ankle_roll_joint
-                0,      # left_hip_pitch_joint
-                0,      # left_hip_roll_joint
-                0,      # left_hip_yaw_joint
-                0,      # left_knee_pitch_joint
-                0,      # left_ankle_pitch_joint
-                0,      # left_ankle_roll_joint
-                0,      # waist_yaw_joint
-                0,      # right_shoulder_pitch_joint
-                0,      # right_shoulder_roll_joint
-                0,      # right_shoulder_yaw_joint
-                0,      # right_elbow_pitch_joint
-                0,      # left_shoulder_pitch_joint
-                0,      # left_shoulder_roll_joint
-                0,      # left_shoulder_yaw_joint
-                0,      # left_elbow_pitch_joint
+                -0.4,  # right_hip_pitch_joint
+                -0.1,   # right_hip_roll_joint
+                0.0,    # right_hip_yaw_joint
+                0.8,    # right_knee_pitch_joint
+                -0.45,  # right_ankle_pitch_joint
+                0.1,    # right_ankle_roll_joint
+                -0.4,  # left_hip_pitch_joint
+                0.1,    # left_hip_roll_joint
+                0.0,    # left_hip_yaw_joint
+                0.8,    # left_knee_pitch_joint
+                -0.45,  # left_ankle_pitch_joint
+                -0.1,   # left_ankle_roll_joint
+                0.0,    # waist_yaw_joint
+                0.0,    # right_shoulder_pitch_joint
+                -0.25,  # right_shoulder_roll_joint
+                0.0,    # right_shoulder_yaw_joint
+                1.0,    # right_elbow_pitch_joint
+                0.0,    # left_shoulder_pitch_joint
+                0.25,   # left_shoulder_roll_joint
+                0.0,    # left_shoulder_yaw_joint
+                1.0,    # left_elbow_pitch_joint
             ]
         )
         self.episode_length_buf = 0
         self.gait_phase = np.zeros(2)
+        self.gait_phase_accum_time = 0.0  # aligned with mini3_env._calculate_gait_para
+        self.was_moving = False
+        self.finishing_cycle = False
+        self.cycle_end_time = 0.0
         self.gait_cycle = self.cfg.robot.gait_cycle
         self.phase_ratio = np.array([self.cfg.robot.gait_air_ratio_l, self.cfg.robot.gait_air_ratio_r])
         self.phase_offset = np.array([self.cfg.robot.gait_phase_offset_l, self.cfg.robot.gait_phase_offset_r])
@@ -284,6 +392,12 @@ class MujocoRunner:
         self.obs_history = np.zeros(
             (self.cfg.sim.num_obs_per_step * self.cfg.sim.actor_obs_history_length,), dtype=np.float32
         )
+        self.joystick_reader = None
+        self.joystick_lock = threading.Lock()
+        self.joystick_vx_scale = 1.0
+        self.joystick_vy_scale = 0.5
+        self.joystick_dyaw_scale = 1.57
+        self.joystick_deadzone = 0.1
 
     def _resolve_sensor_name(self, candidates: list[str]) -> str:
         """Resolve the first available MuJoCo sensor name from candidates."""
@@ -352,12 +466,21 @@ class MujocoRunner:
         self.setup_keyboard_listener()
         self.listener.start()
 
+        if self.setup_joystick():
+            print(f"[INFO] Joystick connected: {self.joystick_reader.device_path}")
+            print("[INFO]   Left stick Y  -> vx  (forward/back)")
+            print("[INFO]   Right stick X -> vy  (left/right)")
+            print("[INFO]   L/R triggers  -> dyaw (turn)")
+        else:
+            print("[INFO] No joystick found, using keyboard control.")
+
         while self.data.time < self.cfg.sim.sim_duration:
             self.obs_history = self.get_obs()
             self.action[:] = (
                 self.policy(torch.tensor(self.obs_history, dtype=torch.float32)).detach().numpy()[: self.cfg.sim.num_action]
             )
             self.action = np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions)
+            # self.action = np.zeros_like(self.action)
 
             for sim_update in range(self.cfg.sim.decimation):
                 step_start_time = time.time()
@@ -371,9 +494,13 @@ class MujocoRunner:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
             self.episode_length_buf += 1
+            if self.episode_length_buf % 100 == 0:
+                print(f"[CMD] vel = [{self.command_vel[0]:+.3f}, {self.command_vel[1]:+.3f}, {self.command_vel[2]:+.3f}]")
             self.calculate_gait_para()
 
         self.listener.stop()
+        if self.joystick_reader:
+            self.joystick_reader.stop()
         self.viewer.close()
 
     def quat_rotate_inverse(self, q: np.ndarray, v: np.ndarray) -> np.ndarray:
@@ -399,9 +526,72 @@ class MujocoRunner:
         """
         Update gait phase parameters based on simulation time and offset.
         """
-        t = self.episode_length_buf * self.dt / self.gait_cycle
+        moving = np.linalg.norm(self.command_vel) > 0.01
+
+        if self.was_moving and not moving:
+            # Velocity just became zero: finish current cycle before stopping
+            t_current = self.gait_phase_accum_time / self.gait_cycle
+            self.cycle_end_time = np.ceil(t_current) * self.gait_cycle
+            self.finishing_cycle = self.gait_phase_accum_time < self.cycle_end_time
+
+        if not self.was_moving and moving:
+            # Velocity just became non-zero: resume phase advancement
+            self.finishing_cycle = False
+
+        if self.finishing_cycle and self.gait_phase_accum_time >= self.cycle_end_time:
+            self.finishing_cycle = False
+
+        if moving or self.finishing_cycle:
+            self.gait_phase_accum_time += self.dt
+
+        self.was_moving = moving
+
+        t = self.gait_phase_accum_time / self.gait_cycle
         self.gait_phase[0] = (t + self.phase_offset[0]) % 1.0
         self.gait_phase[1] = (t + self.phase_offset[1]) % 1.0
+
+    def setup_joystick(self, device_path=None, target_name="DF39") -> bool:
+        """Try to open a joystick device and start reading in a background thread.
+
+        Returns True if a joystick was found and opened successfully.
+        """
+        reader = JoystickReader(device_path)
+        if not reader.open_device(device_path, target_name):
+            return False
+        reader.start_reading(callback=self._on_joystick_event)
+        self.joystick_reader = reader
+        return True
+
+    def _on_joystick_event(self, event) -> None:
+        """Update command_vel from joystick axes (called from background thread)."""
+        # Print raw axis events on first contact to help identify axis mapping.
+        if not hasattr(self, "_joystick_debug_count"):
+            self._joystick_debug_count = 0
+        if self._joystick_debug_count < 30 and (event["type"] & JS_EVENT_AXIS) and not (event["type"] & JS_EVENT_INIT):
+            print(f"[JOYSTICK] axis {event['number']:2d} = {event['value'] / 32767.0:+.3f}")
+            self._joystick_debug_count += 1
+
+        left_y = self.joystick_reader.get_axis(1)
+        right_x = self.joystick_reader.get_axis(2)
+        left_trigger_raw = self.joystick_reader.get_axis(4)
+        right_trigger_raw = self.joystick_reader.get_axis(5)
+
+        left_trigger = max(0.0, min(1.0, (left_trigger_raw + 1.0) / 2.0))
+        right_trigger = max(0.0, min(1.0, (right_trigger_raw + 1.0) / 2.0))
+
+        if abs(left_y) < self.joystick_deadzone:
+            left_y = 0.0
+        if abs(right_x) < self.joystick_deadzone:
+            right_x = 0.0
+
+        vx = -left_y * self.joystick_vx_scale
+        vy = -right_x * self.joystick_vy_scale
+        dyaw = (right_trigger - left_trigger) * self.joystick_dyaw_scale
+
+        with self.joystick_lock:
+            self.command_vel[0] = float(np.clip(vx, -0.3, 0.6))
+            self.command_vel[1] = float(np.clip(vy, -0.3, 0.3))
+            self.command_vel[2] = float(np.clip(dyaw, -0.5, 0.5))
 
     def adjust_command_vel(self, idx: int, increment: float) -> None:
         """
@@ -487,7 +677,7 @@ if __name__ == "__main__":
         sim_cfg.robot.gait_air_ratio_r = 0.38
         sim_cfg.robot.gait_phase_offset_l = 0.38
         sim_cfg.robot.gait_phase_offset_r = 0.88
-        sim_cfg.robot.gait_cycle = 0.85
+        sim_cfg.robot.gait_cycle = 0.55
     elif args.task == "run":
         sim_cfg.robot.gait_air_ratio_l = 0.6
         sim_cfg.robot.gait_air_ratio_r = 0.6

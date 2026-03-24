@@ -212,8 +212,8 @@ class MujocoRunner:
         )
         self.episode_length_buf = 0
         self.gait_phase = np.zeros(2)
-        self.gait_phase_accum_time = 0.0  # aligned with mini3_env._calculate_gait_para
-        self.was_moving = False
+        self.gait_phase_accum_time = 0.0
+        self._was_moving = False
         self.gait_cycle = self.cfg.robot.gait_cycle
         self.phase_ratio = np.array([self.cfg.robot.gait_air_ratio_l, self.cfg.robot.gait_air_ratio_r])
         self.phase_offset = np.array([self.cfg.robot.gait_phase_offset_l, self.cfg.robot.gait_phase_offset_r])
@@ -520,36 +520,37 @@ class MujocoRunner:
 
     def calculate_gait_para(self) -> None:
         """
-        Update gait phase parameters based on simulation time and offset.
+        Update gait phase parameters based on command state and offset.
         Aligned with mini3_env._calculate_gait_para.
         """
-        moving = np.linalg.norm(self.command_vel) > 0.01
-        just_started = moving and not self.was_moving
+        command = self.command_vel
+        moving = np.linalg.norm(command[:3]) > 0.01
+        just_started = moving and (not self._was_moving)
+        stopped = not moving
 
-        if not moving:
-            # Stopped: reset accum_time and smoothly converge phase to 0.
+        if stopped:
             self.gait_phase_accum_time = 0.0
+            phase_stopped = self.gait_phase.copy()
+            delta = ((phase_stopped + 0.5) % 1.0) - 0.5
             step = self.dt / max(self.gait_cycle, 1e-6)
-            for i in range(2):
-                delta = ((self.gait_phase[i] + 0.5) % 1.0) - 0.5  # shortest signed distance to 0
-                delta_step = float(np.clip(delta, -step, step))
-                phase_next = (self.gait_phase[i] - delta_step) % 1.0
-                # Snap to 0 when converged
-                if abs(delta - delta_step) < 1e-6:
-                    phase_next = 0.0
-                self.gait_phase[i] = phase_next
-        elif just_started:
-            # First frame of motion: reset phase to 0, do not advance accum_time yet.
-            self.gait_phase[0] = 0.0
-            self.gait_phase[1] = 0.0
-        else:
-            # Normal motion: advance time and update phase.
+            delta_step = np.clip(delta, -step, step)
+            phase_next = (phase_stopped - delta_step) % 1.0
+            phase_next = np.where(np.abs(delta - delta_step) < 1e-6, 0.0, phase_next)
+            self.gait_phase = phase_next
+
+        advance = moving and (not just_started)
+        if advance:
             self.gait_phase_accum_time += self.dt
+
+        if moving:
             t = self.gait_phase_accum_time / self.gait_cycle
             self.gait_phase[0] = (t + self.phase_offset[0]) % 1.0
             self.gait_phase[1] = (t + self.phase_offset[1]) % 1.0
 
-        self.was_moving = moving
+        if just_started:
+            self.gait_phase[:] = 0.0
+
+        self._was_moving = moving
 
     def setup_joystick(self, device_path=None, target_name="DF39") -> bool:
         """Try to open a joystick device and start reading in a background thread.

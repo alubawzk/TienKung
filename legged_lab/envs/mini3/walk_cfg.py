@@ -121,7 +121,7 @@ class LiteRewardCfg:
 
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.15,
+        weight=-0.2,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -136,14 +136,14 @@ class LiteRewardCfg:
     )
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.05,
+        weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
             ".*_shoulder_roll_joint", 
             ".*_shoulder_yaw_joint"])},
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.02,
+        weight=-0.1,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -221,9 +221,9 @@ class Mini3_WalkFlatEnvCfg:
         height_scan_offset=0.5,
     )
     commands: CommandsCfg = CommandsCfg(
-        resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.2,
-        rel_heading_envs=1.0,
+        resampling_time_range=(2.0, 10.0),
+        rel_standing_envs=0.3,
+        rel_heading_envs=0.8,
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
@@ -350,7 +350,7 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     load_checkpoint = "model_.*.pt"
 
     # amp parameter
-    amp_reward_coef = 0.4
+    amp_reward_coef = 0.3
     amp_motion_files = [
         # support glob patterns, e.g. load all json in a directory:
         "legged_lab/envs/mini3/datasets/motion_amp_expert/mini3_walk/*.json"

@@ -122,7 +122,7 @@ class CatTraverseFlowMimicEnvCfg:
     # ── scene ─────────────────────────────────────────────────────────────────
     scene: BaseSceneCfg = BaseSceneCfg(
         max_episode_length_s=20.0,
-        num_envs=1024,
+        num_envs=4096,
         env_spacing=3.0,
         robot=UNITREE_G1_CFG,
         terrain_type="plane",
@@ -248,27 +248,24 @@ class CatTraverseFlowMimicEnvCfg:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Policy cfg
+# Policy cfg  (standard MLP — RL policy outputs 14*9=126 dim body poses)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @configclass
 class FlowMimicPolicyCfg(RslRlPpoActorCriticCfg):
-    """Policy cfg that adds flow_mimic_pt_path on top of the base PPO cfg.
+    """Standard MLP actor-critic for the high-level RL policy.
 
-    Parent MISSING fields are given defaults because FlowMimicActorCritic
-    ignores them via **kwargs.
+    The policy takes cat_traverse-style obs (~150 dims) and outputs
+    14-body poses (126 dims) in anchor frame.  flow_mimic.pt is loaded
+    and frozen inside CatTraverseFlowMimicEnv — the policy class here
+    is a plain RSL-RL ActorCritic.
     """
-    class_name: str = (
-        "legged_lab.envs.cat_traverse.flow_mimic_policy.FlowMimicActorCritic"
-    )
-    flow_mimic_pt_path: str = "Exported_policy/flow_mimic.pt"
+    class_name: str = "rsl_rl.modules.ActorCriticTanh"
 
     init_noise_std: float = 1.0
     noise_std_type: str = "scalar"
-    actor_obs_normalization: bool = False
-    critic_obs_normalization: bool = False
-    actor_hidden_dims: list = dataclasses.field(default_factory=lambda: [256, 128, 64])
-    critic_hidden_dims: list = dataclasses.field(default_factory=lambda: [512, 256, 128])
+    actor_hidden_dims: list = dataclasses.field(default_factory=lambda: [1024, 512, 256])
+    critic_hidden_dims: list = dataclasses.field(default_factory=lambda: [1024, 512, 256])
     activation: str = "elu"
 
 

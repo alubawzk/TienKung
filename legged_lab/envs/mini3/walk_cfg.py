@@ -143,7 +143,7 @@ class LiteRewardCfg:
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.1,
+        weight=-2.5,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -158,7 +158,7 @@ class LiteRewardCfg:
     )
     joint_deviation_waist = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.5,
+        weight=-2.5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["waist_yaw_joint"])},
     )
 

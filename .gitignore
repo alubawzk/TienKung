@@ -8,4 +8,5 @@ wandb
 MUJOCO_LOG.TXT
 .history
 /legged_lab/assets/
-*.logExported_policy/
+*.log
+Exported_policy/

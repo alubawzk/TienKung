@@ -228,7 +228,7 @@ class Mini3_WalkFlatEnvCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=CommandRangesCfg(
-            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.57, 1.57), heading=(-math.pi, math.pi)
+            lin_vel_x=(-0.5, 0.8), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.57, 1.57), heading=(-math.pi, math.pi)
         ),
     )
     noise: NoiseCfg = NoiseCfg(
@@ -293,8 +293,19 @@ class Mini3_WalkFlatEnvCfg:
                 interval_range_s=(10.0, 15.0),
                 params={"velocity_range": {"x": (-1.0, 1.0), "y": (-1.0, 1.0)}},
             ),
+            randomize_actuator_gains=EventTerm(
+                func=mdp.randomize_actuator_gains,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+                    "stiffness_distribution_params": (0.8, 1.2),
+                    "damping_distribution_params": (0.8, 1.2),
+                    "operation": "scale",
+                    "distribution": "uniform",
+                },
+            ),
         ),
-        action_delay=ActionDelayCfg(enable=False, params={"max_delay": 5, "min_delay": 0}),
+        action_delay=ActionDelayCfg(enable=False, params={"max_delay": 2, "min_delay": 0}),
     )
     sim: SimCfg = SimCfg(dt=0.002, decimation=10, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
 
@@ -362,7 +373,7 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     # amp_motion_file_weights = None
     # Example:
     amp_motion_file_weights = {
-        # "0007_Walking001_stageii": 1,
+        "0007_Walking001_stageii": 1.5,
         "35_01_stageii": 1,
         "35_02_stageii": 1,
         "35_03_stageii": 1,

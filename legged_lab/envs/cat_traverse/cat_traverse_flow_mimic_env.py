@@ -45,7 +45,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.buffers import DelayBuffer
 
 from .cat_traverse_env import CatTraverseEnv
-from .cat_traverse_g1_wbc_cfg import CatTraverseG1WbcEnvCfg, PLANNER_JOINT_NAMES
+from .cat_traverse_flow_mimic_cfg import CatTraverseFlowMimicEnvCfg
+from .cat_traverse_g1_wbc_cfg import PLANNER_JOINT_NAMES
 from .flow_mimic_policy import (
     D_ACTOR_HISTORY,
     D_ACTOR_FUTURE,
@@ -68,7 +69,7 @@ class CatTraverseFlowMimicEnv(CatTraverseEnv):
     # Construction
     # ------------------------------------------------------------------
 
-    def __init__(self, cfg: CatTraverseG1WbcEnvCfg, headless: bool):
+    def __init__(self, cfg: CatTraverseFlowMimicEnvCfg, headless: bool):
         self._planner_joint_ids: list[int] = []
         self._actor_history_buf: torch.Tensor | None = None
         self._critic_history_buf: torch.Tensor | None = None

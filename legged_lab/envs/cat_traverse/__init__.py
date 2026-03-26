@@ -31,7 +31,8 @@ from .cat_traverse_g1_wbc_cfg import (
 from .cat_traverse_g1_wbc_env import CatTraverseG1WbcEnv
 from .cat_traverse_flow_mimic_cfg import (
     CatTraverseFlowMimicAgentCfg,
-    make_g1_flow_mimic_train_env_cfg,
+    CatTraverseFlowMimicEnvCfg,
+    FlowMimicRewardCfg,
 )
 from .cat_traverse_flow_mimic_env import CatTraverseFlowMimicEnv
 from .flow_mimic_policy import (
@@ -69,10 +70,11 @@ __all__ = [
     "make_tienkung_proxy_robot_cfg",
     "CatTraverseFlowMimicAgentCfg",
     "CatTraverseFlowMimicEnv",
+    "CatTraverseFlowMimicEnvCfg",
     "FlowMimicActorCritic",
+    "FlowMimicRewardCfg",
     "TransformerTeacherPolicy",
     "load_flow_mimic",
-    "make_g1_flow_mimic_train_env_cfg",
     "D_ACTOR_HISTORY",
     "D_ACTOR_FUTURE",
     "SEQ_LEN",

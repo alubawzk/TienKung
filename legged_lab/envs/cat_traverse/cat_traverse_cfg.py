@@ -446,9 +446,12 @@ class CatTraverseEnvCfg:
                 func=mdp.reset_root_state_uniform,
                 mode="reset",
                 params={
-                    # Match the original CAT reset:
-                    # x/y ~ U(-1, 1), yaw ~ U(-pi/2, pi/2)
-                    "pose_range": {"x": (-1.0, 1.0), "y": (-1.0, 1.0), "yaw": (-math.pi / 2.0, math.pi / 2.0)},
+                    # Spawn the robot in the clear open area at the start of
+                    # the field. The field origin is (-0.5, -1.0) in env-local
+                    # frame; a ±1 m range sends robots outside the field or
+                    # into obstacles. ±0.3 m keeps the robot well within the
+                    # obstacle-free starting zone of all standard CAT fields.
+                    "pose_range": {"x": (-0.3, 0.3), "y": (-0.3, 0.3), "yaw": (-math.pi / 2.0, math.pi / 2.0)},
                     "velocity_range": {
                         "x": (-0.5, 0.5),
                         "y": (-0.5, 0.5),

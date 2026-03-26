@@ -104,7 +104,15 @@ class OnPolicyRunner:
 
         # evaluate the policy class
         policy_cfg = dict(self.policy_cfg)
-        policy_class = eval(policy_cfg.pop("class_name"))
+        _policy_class_name = policy_cfg.pop("class_name")
+        if "." in _policy_class_name:
+            # Fully-qualified "module.ClassName" — use importlib so the class
+            # does not need to be imported in this runner module.
+            import importlib as _importlib
+            _module_path, _cls_name = _policy_class_name.rsplit(".", 1)
+            policy_class = getattr(_importlib.import_module(_module_path), _cls_name)
+        else:
+            policy_class = eval(_policy_class_name)
         policy_cfg = _filter_init_kwargs(policy_class.__init__, policy_cfg, f"policy {policy_class.__name__}")
         policy: ActorCritic | ActorCriticRecurrent | StudentTeacher | StudentTeacherRecurrent = policy_class(
             num_obs, num_privileged_obs, self.env.num_actions, **policy_cfg

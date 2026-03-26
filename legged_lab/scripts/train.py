@@ -131,7 +131,15 @@ def train():
 
 
 if __name__ == "__main__":
+    import sys
+    import traceback as _tb
+
     try:
         train()
+    except Exception as _e:
+        print("\n" + "=" * 60, flush=True)
+        print("TRAINING ERROR (printed before sim shutdown):", flush=True)
+        _tb.print_exc(file=sys.stdout)
+        sys.stdout.flush()
     finally:
         simulation_app.close()

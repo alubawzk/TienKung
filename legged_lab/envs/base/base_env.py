@@ -77,7 +77,7 @@ class BaseEnv(VecEnv):
             rel_heading_envs=self.cfg.commands.rel_heading_envs,
             heading_command=self.cfg.commands.heading_command,
             heading_control_stiffness=self.cfg.commands.heading_control_stiffness,
-            debug_vis=self.cfg.commands.debug_vis,
+            debug_vis=self.cfg.commands.debug_vis and not self.headless,
             ranges=self.cfg.commands.ranges,
         )
         self.command_generator = UniformVelocityCommand(cfg=command_cfg, env=self)

@@ -177,6 +177,8 @@ class MujocoRunner:
         self.data = mujoco.MjData(self.model)
         self.viewer = mujoco_viewer.MujocoViewer(self.model, self.data)
         self.viewer._render_every_frame = False
+        self.left_foot_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "left_ankle_roll_link")
+        self.right_foot_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "right_ankle_roll_link")
         self.init_variables()
 
     def init_variables(self) -> None:
@@ -393,6 +395,9 @@ class MujocoRunner:
         self.joystick_vy_scale = 0.5
         self.joystick_dyaw_scale = 1.57
         self.joystick_deadzone = 0.1
+        # Contact force tracking
+        self.left_foot_forces: list[float] = []
+        self.right_foot_forces: list[float] = []
 
     def _resolve_sensor_name(self, candidates: list[str]) -> str:
         """Resolve the first available MuJoCo sensor name from candidates."""
@@ -432,8 +437,8 @@ class MujocoRunner:
             ],
             axis=0,
         ).astype(np.float32)
-        if self.episode_length_buf % round(0.5 / self.dt) == 0:
-            print(f"[PHASE] {self.gait_phase[0]:.4f}  {self.gait_phase[1]:.4f}")
+        # if self.episode_length_buf % round(0.5 / self.dt) == 0:
+        #     print(f"[PHASE] {self.gait_phase[0]:.4f}  {self.gait_phase[1]:.4f}")
 
         # Update observation history
         self.obs_history = np.roll(self.obs_history, shift=-self.cfg.sim.num_obs_per_step)
@@ -454,6 +459,52 @@ class MujocoRunner:
         dof_vel = self.data.qvel[self.dof_adr]
         torques = self.kp * (target_pos - dof_pos) - self.kd * dof_vel
         return np.clip(torques, -self.torque_limit, self.torque_limit)
+
+    def _collect_contact_forces(self) -> None:
+        """Read MuJoCo contact forces and append magnitudes for each foot."""
+        force_buf = np.zeros(6)
+        left_f = 0.0
+        right_f = 0.0
+        for i in range(self.data.ncon):
+            contact = self.data.contact[i]
+            g1_body = self.model.geom_bodyid[contact.geom1]
+            g2_body = self.model.geom_bodyid[contact.geom2]
+            involved = {g1_body, g2_body}
+            if self.left_foot_body_id in involved or self.right_foot_body_id in involved:
+                mujoco.mj_contactForce(self.model, self.data, i, force_buf)
+                fmag = float(np.linalg.norm(force_buf[:3]))
+                if self.left_foot_body_id in involved:
+                    left_f += fmag
+                if self.right_foot_body_id in involved:
+                    right_f += fmag
+        self.left_foot_forces.append(left_f)
+        self.right_foot_forces.append(right_f)
+
+    def _print_contact_stats(self) -> None:
+        """Print top-10 force bins and peak force events for each foot."""
+        for name, forces in [("Left foot ", self.left_foot_forces), ("Right foot", self.right_foot_forces)]:
+            arr = np.array(forces)
+            nonzero = arr[arr > 0.0]
+            if nonzero.size == 0:
+                print(f"\n[{name}] No contact forces recorded.")
+                continue
+
+            # Histogram: 10 equal-width bins over the nonzero range
+            counts, edges = np.histogram(nonzero, bins=10)
+            order = np.argsort(counts)[::-1]
+            print(f"\n[{name}] Contact force distribution (top-10 bins by frequency):")
+            print(f"  {'Force range (N)':>24s}  {'Count':>8s}  {'Freq %':>8s}")
+            for rank, idx in enumerate(order[:10]):
+                lo, hi = edges[idx], edges[idx + 1]
+                pct = counts[idx] / nonzero.size * 100.0
+                print(f"  {rank+1:2d}.  [{lo:8.1f}, {hi:8.1f})   {counts[idx]:8d}  {pct:7.2f}%")
+
+            # Top-10 peak force events
+            peak_idx = np.argsort(arr)[::-1][:10]
+            print(f"\n[{name}] Top-10 peak contact forces:")
+            print(f"  {'Rank':>4s}  {'Step':>8s}  {'Force (N)':>12s}")
+            for rank, idx in enumerate(peak_idx):
+                print(f"  {rank+1:4d}  {idx:8d}  {arr[idx]:12.2f}")
 
     def run(self) -> None:
         """
@@ -483,6 +534,7 @@ class MujocoRunner:
 
                 self.data.ctrl = self.torque_control()
                 mujoco.mj_step(self.model, self.data)
+                self._collect_contact_forces()
                 self.viewer.render()
 
                 elapsed = time.time() - step_start_time
@@ -490,14 +542,23 @@ class MujocoRunner:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
             self.episode_length_buf += 1
-            # if self.episode_length_buf % 100 == 0:
-            #     print(f"[CMD] vel = [{self.command_vel[0]:+.3f}, {self.command_vel[1]:+.3f}, {self.command_vel[2]:+.3f}]")
+            if self.episode_length_buf % round(1.0 / self.dt) == 0:
+                lf = self.left_foot_forces[-1] if self.left_foot_forces else 0.0
+                rf = self.right_foot_forces[-1] if self.right_foot_forces else 0.0
+                lmax = max(self.left_foot_forces) if self.left_foot_forces else 0.0
+                rmax = max(self.right_foot_forces) if self.right_foot_forces else 0.0
+                print(
+                    f"[FORCE] t={self.data.time:6.1f}s | "
+                    f"L now={lf:7.1f}N  max={lmax:7.1f}N | "
+                    f"R now={rf:7.1f}N  max={rmax:7.1f}N"
+                )
             self.calculate_gait_para()
 
         self.listener.stop()
         if self.joystick_reader:
             self.joystick_reader.stop()
         self.viewer.close()
+        self._print_contact_stats()
 
     def quat_rotate_inverse(self, q: np.ndarray, v: np.ndarray) -> np.ndarray:
         """
@@ -528,27 +589,27 @@ class MujocoRunner:
         just_started = moving and (not self._was_moving)
         stopped = not moving
 
-        if stopped:
-            self.gait_phase_accum_time = 0.0
-            phase_stopped = self.gait_phase.copy()
-            delta = ((phase_stopped + 0.5) % 1.0) - 0.5
-            step = self.dt / max(self.gait_cycle, 1e-6)
-            delta_step = np.clip(delta, -step, step)
-            phase_next = (phase_stopped - delta_step) % 1.0
-            phase_next = np.where(np.abs(delta - delta_step) < 1e-6, 0.0, phase_next)
-            self.gait_phase = phase_next
+        # if stopped:
+        #     self.gait_phase_accum_time = 0.0
+        #     phase_stopped = self.gait_phase.copy()
+        #     delta = ((phase_stopped + 0.5) % 1.0) - 0.5
+        #     step = self.dt / max(self.gait_cycle, 1e-6)
+        #     delta_step = np.clip(delta, -step, step)
+        #     phase_next = (phase_stopped - delta_step) % 1.0
+        #     phase_next = np.where(np.abs(delta - delta_step) < 1e-6, 0.0, phase_next)
+        #     self.gait_phase = phase_next
 
         advance = moving and (not just_started)
-        if advance:
+        if True: #advance:
             self.gait_phase_accum_time += self.dt
 
-        if moving:
+        if True: #moving:
             t = self.gait_phase_accum_time / self.gait_cycle
             self.gait_phase[0] = (t + self.phase_offset[0]) % 1.0
             self.gait_phase[1] = (t + self.phase_offset[1]) % 1.0
 
-        if just_started:
-            self.gait_phase[:] = 0.0
+        # if just_started:
+        #     self.gait_phase[:] = 0.0
 
         self._was_moving = moving
 
@@ -594,6 +655,7 @@ class MujocoRunner:
             self.command_vel[0] = float(np.clip(vx, -0.3, 0.6))
             self.command_vel[1] = float(np.clip(vy, -0.3, 0.3))
             self.command_vel[2] = float(np.clip(dyaw, -0.5, 0.5))
+            print(f"[CMD] vel = [{self.command_vel[0]:+.3f}, {self.command_vel[1]:+.3f}, {self.command_vel[2]:+.3f}]")
 
     def adjust_command_vel(self, idx: int, increment: float) -> None:
         """

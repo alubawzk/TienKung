@@ -203,9 +203,16 @@ class ActionDelayCfg:
 
 
 @configclass
+class ActionSmoothingCfg:
+    enable: bool = False
+    alpha: float = 0.2
+
+
+@configclass
 class DomainRandCfg:
     events: EventCfg = EventCfg()
     action_delay: ActionDelayCfg = ActionDelayCfg()
+    action_smoothing: ActionSmoothingCfg = ActionSmoothingCfg()
 
 
 @configclass

@@ -34,6 +34,7 @@ import legged_lab.mdp as mdp
 
 from .base_config import (
     ActionDelayCfg,
+    ActionSmoothingCfg,
     BaseSceneCfg,
     CommandRangesCfg,
     CommandsCfg,
@@ -168,6 +169,7 @@ class BaseEnvCfg:
             ),
         ),
         action_delay=ActionDelayCfg(enable=False, params={"max_delay": 5, "min_delay": 0}),
+        action_smoothing=ActionSmoothingCfg(enable=False, alpha=0.2),
     )
     sim: SimCfg = SimCfg(dt=0.005, decimation=4, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
 

@@ -151,6 +151,12 @@ class TienKungEnv(VecEnv):
             )
             self.action_buffer.set_time_lag(time_lags, torch.arange(self.num_envs, device=self.device))
 
+        self.action_smoothing_enable = self.cfg.domain_rand.action_smoothing.enable
+        self.action_smoothing_alpha = self.cfg.domain_rand.action_smoothing.alpha
+        self.last_actions = torch.zeros(
+            self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False
+        )
+
         self.robot_cfg = SceneEntityCfg(name="robot")
         self.robot_cfg.resolve(self.scene)
         self.termination_contact_cfg = SceneEntityCfg(
@@ -449,6 +455,7 @@ class TienKungEnv(VecEnv):
         self.actor_obs_buffer.reset(env_ids)
         self.critic_obs_buffer.reset(env_ids)
         self.action_buffer.reset(env_ids)
+        self.last_actions[env_ids] = 0.0
         self.episode_length_buf[env_ids] = 0
 
         self.scene.write_data_to_sim()
@@ -457,6 +464,9 @@ class TienKungEnv(VecEnv):
     def step(self, actions: torch.Tensor):
         delayed_actions = self.action_buffer.compute(actions)
         self.action = torch.clip(delayed_actions, -self.clip_actions, self.clip_actions).to(self.device)
+        if self.action_smoothing_enable:
+            self.action = self.action_smoothing_alpha * self.action + (1 - self.action_smoothing_alpha) * self.last_actions
+            self.last_actions = self.action.clone()
 
         processed_actions = self.action * self.action_scale + self.robot.data.default_joint_pos
 

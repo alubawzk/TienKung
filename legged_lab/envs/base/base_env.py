@@ -116,6 +116,12 @@ class BaseEnv(VecEnv):
             )
             self.action_buffer.set_time_lag(time_lags, torch.arange(self.num_envs, device=self.device))
 
+        self.action_smoothing_enable = self.cfg.domain_rand.action_smoothing.enable
+        self.action_smoothing_alpha = self.cfg.domain_rand.action_smoothing.alpha
+        self.last_actions = torch.zeros(
+            self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False
+        )
+
         self.robot_cfg = SceneEntityCfg(name="robot")
         self.robot_cfg.resolve(self.scene)
         self.termination_contact_cfg = SceneEntityCfg(
@@ -216,6 +222,7 @@ class BaseEnv(VecEnv):
         self.actor_obs_buffer.reset(env_ids)
         self.critic_obs_buffer.reset(env_ids)
         self.action_buffer.reset(env_ids)
+        self.last_actions[env_ids] = 0.0
         self.episode_length_buf[env_ids] = 0
 
         self.scene.write_data_to_sim()
@@ -225,6 +232,9 @@ class BaseEnv(VecEnv):
         delayed_actions = self.action_buffer.compute(actions)
 
         cliped_actions = torch.clip(delayed_actions, -self.clip_actions, self.clip_actions).to(self.device)
+        if self.action_smoothing_enable:
+            cliped_actions = self.action_smoothing_alpha * cliped_actions + (1 - self.action_smoothing_alpha) * self.last_actions
+            self.last_actions = cliped_actions.clone()
         processed_actions = cliped_actions * self.action_scale + self.robot.data.default_joint_pos
 
         for _ in range(self.cfg.sim.decimation):

@@ -34,6 +34,7 @@ import legged_lab.mdp as mdp
 from legged_lab.assets.mini3 import MINI3_CFG
 from legged_lab.envs.base.base_config import (
     ActionDelayCfg,
+    ActionSmoothingCfg,
     BaseSceneCfg,
     CommandRangesCfg,
     CommandsCfg,
@@ -58,18 +59,18 @@ class GaitCfg:
     gait_air_ratio_r: float = 0.38
     gait_phase_offset_l: float = 0.38
     gait_phase_offset_r: float = 0.88
-    gait_cycle: float = 0.55 # 0.85
+    gait_cycle: float = 0.55
 
 
 @configclass
 class LiteRewardCfg:
     track_lin_vel_xy_exp = RewTerm(func=mdp.track_lin_vel_xy_yaw_frame_exp, weight=5.0, params={"std": 0.5}) # weight=1.0 -> 5.0
-    track_ang_vel_z_exp = RewTerm(func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"std": 0.5})
+    track_ang_vel_z_exp = RewTerm(func=mdp.track_ang_vel_z_world_exp, weight=3.0, params={"std": 0.5})
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     energy = RewTerm(func=mdp.energy, weight=-1e-3)
-    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7) # -2.5e-7
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-1.0,
@@ -121,7 +122,7 @@ class LiteRewardCfg:
 
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -136,14 +137,14 @@ class LiteRewardCfg:
     )
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.1,
+        weight=-0.5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
             ".*_shoulder_roll_joint", 
             ".*_shoulder_yaw_joint"])},
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-2.5,
+        weight=-1.5,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -158,7 +159,7 @@ class LiteRewardCfg:
     )
     joint_deviation_waist = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-2.5,
+        weight=-1.5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["waist_yaw_joint"])},
     )
 
@@ -207,12 +208,12 @@ class Mini3_WalkFlatEnvCfg:
     gait = GaitCfg()
     normalization: NormalizationCfg = NormalizationCfg(
         obs_scales=ObsScalesCfg(
-            lin_vel=1.0,
+            # lin_vel=1.0,
             ang_vel=1.0,
             projected_gravity=1.0,
             commands=1.0,
             joint_pos=1.0,
-            joint_vel=1.0,
+            joint_vel=0.1,
             actions=1.0,
             height_scan=1.0,
         ),
@@ -305,7 +306,8 @@ class Mini3_WalkFlatEnvCfg:
                 },
             ),
         ),
-        action_delay=ActionDelayCfg(enable=False, params={"max_delay": 2, "min_delay": 0}),
+        action_delay=ActionDelayCfg(enable=True, params={"max_delay": 2, "min_delay": 0}),
+        action_smoothing=ActionSmoothingCfg(enable=True, alpha=0.8),
     )
     sim: SimCfg = SimCfg(dt=0.002, decimation=10, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
 

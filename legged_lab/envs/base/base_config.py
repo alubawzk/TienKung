@@ -194,6 +194,7 @@ class EventCfg:
             "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.05, 0.05)},
         },
     )
+    randomize_rigid_body_com_limbs = None
 
 
 @configclass

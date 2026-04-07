@@ -169,8 +169,8 @@ class LiteRewardCfg:
 
     ankle_torque = RewTerm(func=mdp.ankle_torque, weight=-0.0005)
     ankle_action = RewTerm(func=mdp.ankle_action, weight=-0.001)
-    hip_roll_action = RewTerm(func=mdp.hip_roll_action, weight=-1.0)
-    hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-1.0)
+    hip_roll_action = RewTerm(func=mdp.hip_roll_action, weight=-0.5)
+    hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.5)
     feet_y_distance = RewTerm(func=mdp.feet_y_distance, weight=-2.0)
 
 
@@ -201,14 +201,14 @@ class Mini3_WalkFlatEnvCfg:
         actor_obs_history_length=10,
         critic_obs_history_length=10,
         action_scale=0.25,
-        terminate_contacts_body_names=[".*_knee_pitch_link", "base_link", ".*_shoulder_roll_link", ".*_elbow_pitch_link"],
+        terminate_contacts_body_names=["base_link", ".*_shoulder_roll_link", ".*_elbow_pitch_link"],
         feet_body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
     )
     reward = LiteRewardCfg()
     gait = GaitCfg()
     normalization: NormalizationCfg = NormalizationCfg(
         obs_scales=ObsScalesCfg(
-            # lin_vel=1.0,
+            lin_vel=1.0,
             ang_vel=1.0,
             projected_gravity=1.0,
             commands=1.0,
@@ -225,7 +225,7 @@ class Mini3_WalkFlatEnvCfg:
         resampling_time_range=(2.0, 10.0),
         rel_standing_envs=0.3,
         rel_heading_envs=0.8,
-        heading_command=True,
+        heading_command=False,
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=CommandRangesCfg(
@@ -235,12 +235,18 @@ class Mini3_WalkFlatEnvCfg:
     noise: NoiseCfg = NoiseCfg(
         add_noise=True,
         noise_scales=NoiseScalesCfg(
-            lin_vel=0.1,
-            ang_vel=0.2,
-            projected_gravity=0.05,
-            joint_pos=0.01,
-            joint_vel=1.0,
-            height_scan=0.1,
+            # lin_vel=0.2,
+            # ang_vel=0.2,
+            # projected_gravity=0.05,
+            # joint_pos=0.01,
+            # joint_vel=1.5,
+            # height_scan=0.1,
+            lin_vel = 0.10,
+            ang_vel = 0.1,
+            projected_gravity = 0.05,
+            joint_pos = 0.1,
+            joint_vel = 0.3,
+            height_scan = 0.1,
         ),
     )
     domain_rand: DomainRandCfg = DomainRandCfg(
@@ -261,7 +267,7 @@ class Mini3_WalkFlatEnvCfg:
                 mode="startup",
                 params={
                     "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
-                    "mass_distribution_params": (-0.1, 0.2),
+                    "mass_distribution_params": (-2.0, 2.0),
                     "operation": "add",
                 },
             ),
@@ -305,8 +311,24 @@ class Mini3_WalkFlatEnvCfg:
                     "distribution": "uniform",
                 },
             ),
+            randomize_rigid_body_com = EventTerm(
+                func=mdp.randomize_rigid_body_com,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("robot", body_names=["base_link", "waist_yaw_link"]),
+                    "com_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1)},
+                },
+            ),
+            randomize_rigid_body_com_limbs = EventTerm(
+                func=mdp.randomize_rigid_body_com,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("robot", body_names=[".*_hip_pitch_link",".*_hip_yaw_link", ".*_hip_roll_link",".*_knee_pitch_link", ".*_ankle_pitch_link", ".*_ankle_roll_link", ".*_shoulder_pitch_link", ".*_shoulder_roll_link", ".*_shoulder_yaw_link", ".*_elbow_pitch_link"]),
+                    "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.05, 0.05)},
+                },
+            ),
         ),
-        action_delay=ActionDelayCfg(enable=True, params={"max_delay": 2, "min_delay": 0}),
+        action_delay=ActionDelayCfg(enable=True, params={"max_delay": 5, "min_delay": 0}),
         action_smoothing=ActionSmoothingCfg(enable=True, alpha=0.8),
     )
     sim: SimCfg = SimCfg(dt=0.002, decimation=10, physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
@@ -378,13 +400,13 @@ class Mini3_WalkAgentCfg(RslRlOnPolicyRunnerCfg):
         "0007_Walking001_stageii": 1.5,
         "35_01_stageii": 1,
         "35_02_stageii": 1,
-        "35_03_stageii": 1,
-        "35_04_stageii": 1,
-        "35_06_stageii": 1,
-        "35_07_stageii": 1,
-        "35_08_stageii": 1,
-        "35_11_stageii": 1,
-        "35_12_stageii": 1,
+        # "35_03_stageii": 1,
+        # "35_04_stageii": 1,
+        # "35_06_stageii": 1,
+        # "35_07_stageii": 1,
+        # "35_08_stageii": 1,
+        # "35_11_stageii": 1,
+        # "35_12_stageii": 1,
     }
     amp_num_preload_transitions = 200000
     amp_task_reward_lerp = 0.7

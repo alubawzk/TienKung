@@ -10,3 +10,4 @@ MUJOCO_LOG.TXT
 /legged_lab/assets/
 *.log
 exp_setup.md
+*.onnx

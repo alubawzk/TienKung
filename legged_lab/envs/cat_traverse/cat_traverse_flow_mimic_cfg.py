@@ -106,6 +106,11 @@ class CatTraverseFlowMimicEnvCfg:
     # ── flow_mimic specific ──────────────────────────────────────────────────
     flow_mimic_pt_path: str = "Exported_policy/flow_mimic.pt"
 
+    # Scale applied to delta_pos before adding to current body position.
+    # Policy outputs in [-1, 1]; multiplied by this gives max ±delta_pos_scale metres
+    # per step.  Default 0.15 m ≈ reasonable single-step reach for a 20 Hz policy.
+    delta_pos_scale: float = 0.15
+
     # ── identity ─────────────────────────────────────────────────────────────
     device:  str = "cuda:0"
     variant: str = "cat_flow_mimic"
@@ -307,7 +312,7 @@ class CatTraverseFlowMimicAgentCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = None
     save_interval = 100
     runner_class_name = "OnPolicyRunner"
-    experiment_name = "cat_traverse_g1_flow_mimic"
+    experiment_name = "cat_traverse_g1_flow_mimic_delta"
     run_name = ""
     logger = "tensorboard"
     neptune_project = "cat_traverse"

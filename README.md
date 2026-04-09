@@ -151,7 +151,9 @@ CUDA_VISIBLE_DEVICES=4 nohup python legged_lab/scripts/train.py --task cat_trave
 3355547
 
 nohup python legged_lab/scripts/train.py --task cat_traverse_g1_flow_mimic --field_path data/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_flow_mimic --headless >collis_flow_mimic.log 2>&1 &
+
 nohup python legged_lab/scripts/train.py --task cat_traverse_g1_flow_mimic --field_path data/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_flow_mimic --headless >collis_flow_mimic.log 2>&1 &
+
 ```
 
 ### Play

@@ -669,7 +669,7 @@ class CatTraverseFlowMimicEnv(CatTraverseEnv):
         self.latest_field_cache = {}
         self.reset_buf, self.time_out_buf = self.check_reset()
         reward_buf = self.reward_manager.compute(self.step_dt)
-        reward_buf = torch.clamp(reward_buf, min=0.0, max=10_000.0)
+        reward_buf = torch.clamp(reward_buf, min=-10_000.0, max=10_000.0)
         self._last_joint_vel.copy_(self.robot.data.joint_vel)
 
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()

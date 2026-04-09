@@ -150,12 +150,8 @@ CUDA_VISIBLE_DEVICES=3 nohup python legged_lab/scripts/train.py --task cat_trave
 CUDA_VISIBLE_DEVICES=4 nohup python legged_lab/scripts/train.py --task cat_traverse_g1 --field_path legged_lab/assets/TypiObs/bend --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Bend_baseline --headless >my_output4.log 2>&1 &
 3355547
 
-python legged_lab/scripts/train.py \
-  --task cat_traverse_g1_pri \
-  --field_path data/assets/TypiObs/narrow0 \
-  --logger tensorboard \
-  --num_envs 9 \
-  --max_iterations 5
+nohup python legged_lab/scripts/train.py --task cat_traverse_g1_flow_mimic --field_path data/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_flow_mimic --headless >collis_flow_mimic.log 2>&1 &
+nohup python legged_lab/scripts/train.py --task cat_traverse_g1_flow_mimic --field_path data/assets/TypiObs/narrow0 --logger tensorboard --num_envs 8192 --max_iterations 10000 --run_name Narrow0_flow_mimic --headless >collis_flow_mimic.log 2>&1 &
 ```
 
 ### Play
@@ -163,11 +159,11 @@ python legged_lab/scripts/train.py \
 Run the trained policy.
 
 ```bash
-python legged_lab/scripts/play.py --task walk --num_envs 1 --load_run 2026-03-15_10-38-32_Add_JointArmature_500Hz --vx 0.0
+python legged_lab/scripts/play.py --task cat_traverse_g1_flow_mimic --num_envs 1 --load_run 2026-03-15_10-38-32_Add_JointArmature_500Hz --vx 0.0
 
 PYTHONPATH=/home/amax/Desktop/Click-and-Traverse/TienKung:$PYTHONPATH \
 python legged_lab/scripts/play.py \
-  --task cat_traverse_g1 \
+  --task cat_traverse_g1_flow_mimic \
   --field_path data/assets/TypiObs/narrow0 \
   --num_envs 1 \
   --load_run <your_cat_run_dir>
@@ -181,10 +177,10 @@ python legged_lab/scripts/play.py \
 
 
 python legged_lab/scripts/play.py \
-  --task cat_traverse_g1 \
-  --field_path data/assets/TypiObs/hole \
+  --task cat_traverse_g1_flow_mimic \
+  --field_path data/assets/TypiObs/narrow0 \
   --num_envs 1 \
-  --load_run 2026-03-20_15-47-13_Hole_baseline
+  --load_run 2026-03-26_17-25-46_Narrow0_flow_mimic
 
 # bar
 python legged_lab/scripts/play.py \

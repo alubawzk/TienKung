@@ -53,16 +53,16 @@ from .cat_traverse_cfg import (
 @configclass
 class FlowMimicRewardCfg:
     tracking_orientation = RewTerm(func=mdp.cat_tracking_orientation, weight=2.0, params={"torso_height_upper": 1.0})
-    tracking_root_field  = RewTerm(func=mdp.cat_tracking_root_field, weight=1.0)
+    tracking_root_field  = RewTerm(func=mdp.cat_tracking_root_field, weight=3.0)   # ↑ x3 encourage forward motion
     body_motion          = RewTerm(func=mdp.cat_body_motion, weight=-0.5)
     body_rotation        = RewTerm(func=mdp.cat_body_rotation, weight=1.0, params={"yaw_cmd_max": 0.5})
     feet_rotation        = RewTerm(func=mdp.cat_feet_rotation, weight=0.0)
     foot_contact         = RewTerm(func=mdp.cat_foot_contact, weight=-1.0)
-    foot_clearance       = RewTerm(func=mdp.cat_foot_clearance, weight=-15.0, params={"foot_height_stance": 0.0})
+    foot_clearance       = RewTerm(func=mdp.cat_foot_clearance, weight=-3.0, params={"foot_height_stance": 0.0})  # -15 → -3
     foot_slip            = RewTerm(func=mdp.cat_foot_slip, weight=-0.5)
-    foot_balance         = RewTerm(func=mdp.cat_foot_balance, weight=-30.0)
+    foot_balance         = RewTerm(func=mdp.cat_foot_balance, weight=-2.0)   # -30 → -2: RL policy 无法直接控制足部平衡
     foot_far             = RewTerm(func=mdp.cat_foot_far, weight=-0.0)
-    straight_knee        = RewTerm(func=mdp.cat_straight_knee, weight=-30.0, params={"joint_patterns": [".*_knee_joint"]})
+    straight_knee        = RewTerm(func=mdp.cat_straight_knee, weight=-2.0, params={"joint_patterns": [".*_knee_joint"]})  # -30 → -2
     joint_limits         = RewTerm(func=mdp.cat_joint_pos_limits, weight=-1.0)
     joint_torque         = RewTerm(func=mdp.cat_joint_torque, weight=-1.0e-4)
     smoothness_joint     = RewTerm(

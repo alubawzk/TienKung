@@ -182,7 +182,7 @@ python legged_lab/scripts/play.py \
   --task cat_traverse_g1_flow_mimic \
   --field_path data/assets/TypiObs/narrow0 \
   --num_envs 1 \
-  --load_run 2026-03-26_17-25-46_Narrow0_flow_mimic
+  --load_run 2026-04-09_18-19-05_Narrow0_flow_mimic
 
 # bar
 python legged_lab/scripts/play.py \

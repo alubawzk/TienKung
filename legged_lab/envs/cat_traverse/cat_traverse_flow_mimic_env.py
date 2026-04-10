@@ -324,6 +324,13 @@ class CatTraverseFlowMimicEnv(CatTraverseEnv):
 
         Returns:
             composed_pose: (N, 14, 9) absolute pos+rot6d in anchor frame.
+
+        Identity bias:
+            gram_schmidt(delta_rot6d) would degenerate to zeros(3,3) when
+            delta_rot6d ≈ 0 (initial policy mean with ActorCriticTanh).
+            Adding the identity column bias [1,0,0, 0,1,0] ensures:
+              zero delta_rot6d → rot6d_biased = [1,0,0, 0,1,0]
+                               → gram_schmidt → I  (identity, no rotation change)
         """
         N = clipped.shape[0]
         actions_r   = clipped.view(N, N_TRACKED_BODIES, BODY_POSE_DIM)  # (N, 14, 9)
@@ -338,9 +345,14 @@ class CatTraverseFlowMimicEnv(CatTraverseEnv):
         # Position: add scaled delta
         target_pos_a = current_pos_a + delta_pos * self.cfg.delta_pos_scale  # (N, 14, 3)
 
-        # Rotation: right-multiply current by delta (stays in SO(3))
-        R_delta  = gram_schmidt(delta_rot6d)          # (N, 14, 3, 3)
-        R_target = current_rot_a @ R_delta            # (N, 14, 3, 3)
+        # Rotation: identity bias so zero action → no rotation change
+        # [1,0,0, 0,1,0] are the first two columns of the 3×3 identity matrix
+        identity_bias = torch.tensor(
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            dtype=delta_rot6d.dtype, device=self.device,
+        ).view(1, 1, 6)
+        R_delta  = gram_schmidt(delta_rot6d + identity_bias)  # (N, 14, 3, 3)
+        R_target = current_rot_a @ R_delta                    # (N, 14, 3, 3)
 
         # Convert back to rot6d via explicit column concat (column-vector convention)
         rot6d_target = matrix_to_rot6d(R_target)      # (N, 14, 6)

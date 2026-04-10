@@ -10,4 +10,8 @@ MUJOCO_LOG.TXT
 /legged_lab/assets/
 *.log
 Exported_policy/
+<<<<<<< HEAD
 exp_setup.md
+=======
+exp_setup.md
+>>>>>>> 78f52819b07757f46b31461ebdc281abb89ebc89

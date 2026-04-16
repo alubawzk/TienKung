@@ -1,3 +1,14 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+# Original code is licensed under BSD-3-Clause.
+#
+# Copyright (c) 2025-2026, The Legged Lab Project Developers.
+# All rights reserved.
+# Modifications are licensed under BSD-3-Clause.
+#
+# This file contains code derived from Isaac Lab Project (BSD-3-Clause license)
+# with modifications by Legged Lab Project (BSD-3-Clause license).
+
 # Copyright (c) 2021-2024, The RSL-RL Project Developers.
 # All rights reserved.
 # Original code is licensed under the BSD-3-Clause license.
@@ -22,11 +33,9 @@ import os
 import statistics
 import time
 from collections import deque
-import inspect
-
-import torch
 
 import rsl_rl
+import torch
 from rsl_rl.algorithms import AMPPPO
 from rsl_rl.env import VecEnv
 from rsl_rl.modules import (
@@ -37,7 +46,7 @@ from rsl_rl.modules import (
     StudentTeacher,
     StudentTeacherRecurrent,
 )
-from rsl_rl.utils import AMPLoader, Normalizer, store_code_state
+from rsl_rl.utils import AMPLoaderGeneral, Normalizer, store_code_state
 
 
 class AmpOnPolicyRunner:
@@ -108,36 +117,31 @@ class AmpOnPolicyRunner:
             self.alg_cfg["symmetry_cfg"]["_env"] = env
 
         # init amp loader
-        amp_data = AMPLoader(
-            device,
-            time_between_frames=self.env.step_dt,
-            preload_transitions=True,
-            num_preload_transitions=train_cfg["amp_num_preload_transitions"],
+        print(f"[INFO]: Initializing AMP loader with config: {train_cfg}")
+        amp_data = AMPLoaderGeneral(
+            config_files=train_cfg["amp_config_files"],
             motion_files=train_cfg["amp_motion_files"],
-            motion_file_weights=train_cfg.get("amp_motion_file_weights", None),
+            control_time_interval=self.env.step_dt,
+            num_preload_transitions=train_cfg["amp_num_preload_transitions"],
+            device=self.device,
         )
-        amp_normalizer = Normalizer(amp_data.observation_dim)
+        print(amp_data)
+        amp_normalizer = Normalizer(amp_data.obs_dim)
         discriminator = Discriminator(
-            amp_data.observation_dim * 2,
+            amp_data.obs_dim * 2,
             train_cfg["amp_reward_coef"],
             train_cfg["amp_discr_hidden_dims"],
             device,
             train_cfg["amp_task_reward_lerp"],
         ).to(self.device)
-        min_std = torch.zeros(len(train_cfg["min_normalized_std"]), device=self.device, requires_grad=False)
+        min_std = torch.zeros(
+            len(train_cfg["min_normalized_std"]),
+            device=self.device,
+            requires_grad=False,
+        )
 
         # initialize algorithm
         alg_class = eval(self.alg_cfg.pop("class_name"))
-        # Some external config providers may include keys not supported by the algorithm
-        # constructor in this repo. Filter them out for compatibility.
-        try:
-            allowed_kwargs = set(inspect.signature(alg_class.__init__).parameters.keys())
-            allowed_kwargs.discard("self")
-            self.alg_cfg = {k: v for k, v in self.alg_cfg.items() if k in allowed_kwargs}
-        except (TypeError, ValueError):
-            # If signature inspection fails, fall back to removing known unsupported keys.
-            self.alg_cfg.pop("optimizer", None)
-            self.alg_cfg.pop("share_cnn_encoders", None)
         self.alg: AMPPPO = alg_class(
             policy,
             discriminator,
@@ -220,8 +224,12 @@ class AmpOnPolicyRunner:
         # start learning
         obs, extras = self.env.get_observations()
         privileged_obs = extras["observations"].get(self.privileged_obs_type, obs)
-        amp_obs = self.env.get_amp_obs_for_expert_trans()
-        obs, privileged_obs, amp_obs = obs.to(self.device), privileged_obs.to(self.device), amp_obs.to(self.device)
+        amp_obs = self.env.get_amp_obs()
+        obs, privileged_obs, amp_obs = (
+            obs.to(self.device),
+            privileged_obs.to(self.device),
+            amp_obs.to(self.device),
+        )
         self.train_mode()  # switch to train mode (for dropout for example)
 
         # Book keeping
@@ -257,14 +265,13 @@ class AmpOnPolicyRunner:
                     actions = self.alg.act(obs, privileged_obs, amp_obs)
                     # Step the environment
                     obs, rewards, dones, infos, terminal_amp_states = self.env.step(actions.to(self.env.device))
-                    next_amp_obs = self.env.get_amp_obs_for_expert_trans()
+                    next_amp_obs = self.env.get_amp_obs()
                     # Move to device
-                    obs, rewards, dones, next_amp_obs, terminal_amp_states = (
+                    obs, rewards, dones, next_amp_obs = (
                         obs.to(self.device),
                         rewards.to(self.device),
                         dones.to(self.device),
                         next_amp_obs.to(self.device),
-                        terminal_amp_states.to(self.device),
                     )
                     # perform normalization
                     obs = self.obs_normalizer(obs)
@@ -281,7 +288,10 @@ class AmpOnPolicyRunner:
                     next_amp_obs_with_term[reset_env_ids] = terminal_amp_states
 
                     rewards = self.alg.discriminator.predict_amp_reward(
-                        amp_obs, next_amp_obs_with_term, rewards, normalizer=self.alg.amp_normalizer
+                        amp_obs,
+                        next_amp_obs_with_term,
+                        rewards,
+                        normalizer=self.alg.amp_normalizer,
                     )[0]
                     amp_obs = torch.clone(next_amp_obs)
                     self.alg.process_env_step(rewards, dones, infos, next_amp_obs_with_term)
@@ -406,16 +416,34 @@ class AmpOnPolicyRunner:
         if len(locs["rewbuffer"]) > 0:
             # separate logging for intrinsic and extrinsic rewards
             if self.alg.rnd:
-                self.writer.add_scalar("Rnd/mean_extrinsic_reward", statistics.mean(locs["erewbuffer"]), locs["it"])
-                self.writer.add_scalar("Rnd/mean_intrinsic_reward", statistics.mean(locs["irewbuffer"]), locs["it"])
+                self.writer.add_scalar(
+                    "Rnd/mean_extrinsic_reward",
+                    statistics.mean(locs["erewbuffer"]),
+                    locs["it"],
+                )
+                self.writer.add_scalar(
+                    "Rnd/mean_intrinsic_reward",
+                    statistics.mean(locs["irewbuffer"]),
+                    locs["it"],
+                )
                 self.writer.add_scalar("Rnd/weight", self.alg.rnd.weight, locs["it"])
             # everything else
             self.writer.add_scalar("Train/mean_reward", statistics.mean(locs["rewbuffer"]), locs["it"])
-            self.writer.add_scalar("Train/mean_episode_length", statistics.mean(locs["lenbuffer"]), locs["it"])
+            self.writer.add_scalar(
+                "Train/mean_episode_length",
+                statistics.mean(locs["lenbuffer"]),
+                locs["it"],
+            )
             if self.logger_type != "wandb":  # wandb does not support non-integer x-axis logging
-                self.writer.add_scalar("Train/mean_reward/time", statistics.mean(locs["rewbuffer"]), self.tot_time)
                 self.writer.add_scalar(
-                    "Train/mean_episode_length/time", statistics.mean(locs["lenbuffer"]), self.tot_time
+                    "Train/mean_reward/time",
+                    statistics.mean(locs["rewbuffer"]),
+                    self.tot_time,
+                )
+                self.writer.add_scalar(
+                    "Train/mean_episode_length/time",
+                    statistics.mean(locs["lenbuffer"]),
+                    self.tot_time,
                 )
 
         str = f" \033[1m Learning iteration {locs['it']}/{locs['tot_iter']} \033[0m "

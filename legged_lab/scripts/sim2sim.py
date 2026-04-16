@@ -147,6 +147,8 @@ class SimToSimCfg:
         clip_observations = 100.0
         clip_actions = 100.0
         action_scale = 0.25
+        action_smoothing_alpha = 0.8
+        add_noise = True
 
     class robot:
         gait_air_ratio_l: float = 0.38
@@ -187,6 +189,7 @@ class MujocoRunner:
         self.dof_pos = np.zeros(self.cfg.sim.num_action)
         self.dof_vel = np.zeros(self.cfg.sim.num_action)
         self.action = np.zeros(self.cfg.sim.num_action)
+        self.last_actions = np.zeros(self.cfg.sim.num_action)
         self.default_dof_pos = np.array(
             [
                 -0.4,  # right_hip_pitch_joint
@@ -222,79 +225,83 @@ class MujocoRunner:
         # PD gains and torque limits in MuJoCo joint order.
         self.kp = np.array(
             [
-                35,  # right_hip_pitch_joint
-                20,  # right_hip_roll_joint
-                20,  # right_hip_yaw_joint
-                35,  # right_knee_pitch_joint
-                35,  # right_ankle_pitch_joint
-                20,  # right_ankle_roll_joint
-                35,  # left_hip_pitch_joint
-                20,  # left_hip_roll_joint
-                20,  # left_hip_yaw_joint
-                35,  # left_knee_pitch_joint
-                35,  # left_ankle_pitch_joint
-                20,  # left_ankle_roll_joint
-                20,  # waist_yaw_joint
-                20,  # right_shoulder_pitch_joint
-                15,  # right_shoulder_roll_joint
-                10,  # right_shoulder_yaw_joint
-                10,  # right_elbow_pitch_joint
-                20,  # left_shoulder_pitch_joint
-                15,  # left_shoulder_roll_joint
-                10,  # left_shoulder_yaw_joint
-                10,  # left_elbow_pitch_joint
+                70.0,  # right_hip_pitch_joint
+                55.0,  # right_hip_roll_joint
+                25.0,  # right_hip_yaw_joint
+                70.0,  # right_knee_pitch_joint
+                50.0,  # right_ankle_pitch_joint
+                45.0,  # right_ankle_roll_joint
+                70.0,  # left_hip_pitch_joint
+                55.0,  # left_hip_roll_joint
+                25.0,  # left_hip_yaw_joint
+                70.0,  # left_knee_pitch_joint
+                50.0,  # left_ankle_pitch_joint
+                45.0,  # left_ankle_roll_joint
+                65.0,  # waist_yaw_joint
+                30.0,  # right_shoulder_pitch_joint
+                45.0,  # right_shoulder_roll_joint
+                30.0,  # right_shoulder_yaw_joint
+                20.0,  # right_elbow_pitch_joint
+                30.0,  # left_shoulder_pitch_joint
+                45.0,  # left_shoulder_roll_joint
+                30.0,  # left_shoulder_yaw_joint
+                20.0,  # left_elbow_pitch_joint
             ],
             dtype=np.float64,
         )
+        # Keep these damping gains aligned with legged_lab/assets/mini3/mini3.py::MINI3_CFG
+        # so MuJoCo sim2sim uses the same derivative gains as training.
         self.kd = np.array(
             [
-                2.0,  # right_hip_pitch_joint
-                2.0,  # right_hip_roll_joint
-                2.0,  # right_hip_yaw_joint
-                2.0,  # right_knee_pitch_joint
-                1.5,  # right_ankle_pitch_joint
-                1.5,  # right_ankle_roll_joint
-                2.0,  # left_hip_pitch_joint
-                2.0,  # left_hip_roll_joint
-                2.0,  # left_hip_yaw_joint
-                2.0,  # left_knee_pitch_joint
-                1.5,  # left_ankle_pitch_joint
-                1.5,  # left_ankle_roll_joint
-                1.0,  # waist_yaw_joint
-                1.0,  # right_shoulder_pitch_joint
-                1.0,  # right_shoulder_roll_joint
+                5.0,  # right_hip_pitch_joint
+                2.8,  # right_hip_roll_joint
+                1.1,  # right_hip_yaw_joint
+                5.0,  # right_knee_pitch_joint
+                1.0,  # right_ankle_pitch_joint
+                1.0,  # right_ankle_roll_joint
+                5.0,  # left_hip_pitch_joint
+                2.8,  # left_hip_roll_joint
+                1.1,  # left_hip_yaw_joint
+                5.0,  # left_knee_pitch_joint
+                1.0,  # left_ankle_pitch_joint
+                1.0,  # left_ankle_roll_joint
+                3.0,  # waist_yaw_joint
+                1.1,  # right_shoulder_pitch_joint
+                2.0,  # right_shoulder_roll_joint
                 1.0,  # right_shoulder_yaw_joint
                 1.0,  # right_elbow_pitch_joint
-                1.0,  # left_shoulder_pitch_joint
-                1.0,  # left_shoulder_roll_joint
+                1.1,  # left_shoulder_pitch_joint
+                2.0,  # left_shoulder_roll_joint
                 1.0,  # left_shoulder_yaw_joint
                 1.0,  # left_elbow_pitch_joint
             ],
             dtype=np.float64,
         )
+        # Keep these limits aligned with legged_lab/assets/mini3/mini3.py::MINI3_CFG
+        # so MuJoCo sim2sim uses the same actuator saturation as training.
         self.torque_limit = np.array(
             [
                 97,  # right_hip_pitch_joint
-                28,  # right_hip_roll_joint
-                28,  # right_hip_yaw_joint
+                27,  # right_hip_roll_joint
+                27,  # right_hip_yaw_joint
                 97,  # right_knee_pitch_joint
-                20,  # right_ankle_pitch_joint
-                20,  # right_ankle_roll_joint
+                12.5,  # right_ankle_pitch_joint
+                12.5,  # right_ankle_roll_joint
                 97,  # left_hip_pitch_joint
-                28,  # left_hip_roll_joint
-                28,  # left_hip_yaw_joint
+                27,  # left_hip_roll_joint
+                27,  # left_hip_yaw_joint
                 97,  # left_knee_pitch_joint
-                20,  # left_ankle_pitch_joint
-                20,  # left_ankle_roll_joint
-                28,  # waist_yaw_joint
-                10,  # right_shoulder_pitch_joint
-                10,  # right_shoulder_roll_joint
-                10,  # right_shoulder_yaw_joint
-                10,  # right_elbow_pitch_joint
-                10,  # left_shoulder_pitch_joint
-                10,  # left_shoulder_roll_joint
-                10,  # left_shoulder_yaw_joint
-                10,  # left_elbow_pitch_joint
+                12.5,  # left_ankle_pitch_joint
+                12.5,  # left_ankle_roll_joint
+                27,  # waist_yaw_joint
+                12.5,  # right_shoulder_pitch_joint
+                12.5,  # right_shoulder_roll_joint
+                12.5,  # right_shoulder_yaw_joint
+                12.5,  # right_elbow_pitch_joint
+                12.5,  # left_shoulder_pitch_joint
+                12.5,  # left_shoulder_roll_joint
+                12.5,  # left_shoulder_yaw_joint
+                12.5,  # left_elbow_pitch_joint
             ],
             dtype=np.float64,
         )
@@ -389,6 +396,15 @@ class MujocoRunner:
         self.obs_history = np.zeros(
             (self.cfg.sim.num_obs_per_step * self.cfg.sim.actor_obs_history_length,), dtype=np.float32
         )
+        # Noise scale vector aligned with obs layout:
+        # [0:3] ang_vel, [3:6] projected_gravity, [6:9] command (no noise),
+        # [9:30] joint_pos, [30:51] joint_vel (pre-scaled by 0.1), [51:78] no noise
+        n = self.cfg.sim.num_action  # 21
+        self.noise_scale_vec = np.zeros(self.cfg.sim.num_obs_per_step, dtype=np.float32)
+        self.noise_scale_vec[0:3] = 0.00          # ang_vel:  0.08 * obs_scale(1.0)
+        self.noise_scale_vec[3:6] = 0.00          # projected_gravity: 0.05 * obs_scale(1.0)
+        self.noise_scale_vec[9:9 + n] = 0.00      # joint_pos: 0.05 * obs_scale(1.0)
+        self.noise_scale_vec[9 + n:9 + n * 2] = 0.0  # joint_vel: 0.25 * obs_scale(0.1)
         self.joystick_reader = None
         self.joystick_lock = threading.Lock()
         self.joystick_vx_scale = 1.0
@@ -429,7 +445,7 @@ class MujocoRunner:
                 ),  # 3
                 self.command_vel,  # 3
                 (self.dof_pos - self.default_dof_pos)[self.mujoco_to_isaac_idx],  # 21
-                self.dof_vel[self.mujoco_to_isaac_idx],  # 21
+                self.dof_vel[self.mujoco_to_isaac_idx] * 0.1,  # 21
                 np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions),  # 21
                 np.sin(2 * np.pi * self.gait_phase),  # 2
                 np.cos(2 * np.pi * self.gait_phase),  # 2
@@ -437,9 +453,12 @@ class MujocoRunner:
             ],
             axis=0,
         ).astype(np.float32)
+        # print(self.data.sensor(self.ang_vel_sensor_name).data.astype(np.double))
         # if self.episode_length_buf % round(0.5 / self.dt) == 0:
         #     print(f"[PHASE] {self.gait_phase[0]:.4f}  {self.gait_phase[1]:.4f}")
-
+        # import ipdb; ipdb.set_trace()
+        # if self.cfg.sim.add_noise:
+        #     obs += (2 * np.random.rand(self.cfg.sim.num_obs_per_step).astype(np.float32) - 1) * self.noise_scale_vec
         # Update observation history
         self.obs_history = np.roll(self.obs_history, shift=-self.cfg.sim.num_obs_per_step)
         self.obs_history[-self.cfg.sim.num_obs_per_step :] = obs.copy()
@@ -527,6 +546,8 @@ class MujocoRunner:
                 self.policy(torch.tensor(self.obs_history, dtype=torch.float32)).detach().numpy()[: self.cfg.sim.num_action]
             )
             self.action = np.clip(self.action, -self.cfg.sim.clip_actions, self.cfg.sim.clip_actions)
+            self.action = self.cfg.sim.action_smoothing_alpha * self.action + (1 - self.cfg.sim.action_smoothing_alpha) * self.last_actions
+            self.last_actions = self.action.copy()
             # self.action = np.zeros_like(self.action)
 
             for sim_update in range(self.cfg.sim.decimation):
@@ -542,16 +563,16 @@ class MujocoRunner:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
             self.episode_length_buf += 1
-            if self.episode_length_buf % round(1.0 / self.dt) == 0:
-                lf = self.left_foot_forces[-1] if self.left_foot_forces else 0.0
-                rf = self.right_foot_forces[-1] if self.right_foot_forces else 0.0
-                lmax = max(self.left_foot_forces) if self.left_foot_forces else 0.0
-                rmax = max(self.right_foot_forces) if self.right_foot_forces else 0.0
-                print(
-                    f"[FORCE] t={self.data.time:6.1f}s | "
-                    f"L now={lf:7.1f}N  max={lmax:7.1f}N | "
-                    f"R now={rf:7.1f}N  max={rmax:7.1f}N"
-                )
+            # if self.episode_length_buf % round(1.0 / self.dt) == 0:
+            #     lf = self.left_foot_forces[-1] if self.left_foot_forces else 0.0
+            #     rf = self.right_foot_forces[-1] if self.right_foot_forces else 0.0
+            #     lmax = max(self.left_foot_forces) if self.left_foot_forces else 0.0
+            #     rmax = max(self.right_foot_forces) if self.right_foot_forces else 0.0
+            #     print(
+            #         f"[FORCE] t={self.data.time:6.1f}s | "
+            #         f"L now={lf:7.1f}N  max={lmax:7.1f}N | "
+            #         f"R now={rf:7.1f}N  max={rmax:7.1f}N"
+            #     )
             self.calculate_gait_para()
 
         self.listener.stop()
@@ -589,27 +610,31 @@ class MujocoRunner:
         just_started = moving and (not self._was_moving)
         stopped = not moving
 
-        # if stopped:
-        #     self.gait_phase_accum_time = 0.0
-        #     phase_stopped = self.gait_phase.copy()
-        #     delta = ((phase_stopped + 0.5) % 1.0) - 0.5
-        #     step = self.dt / max(self.gait_cycle, 1e-6)
-        #     delta_step = np.clip(delta, -step, step)
-        #     phase_next = (phase_stopped - delta_step) % 1.0
-        #     phase_next = np.where(np.abs(delta - delta_step) < 1e-6, 0.0, phase_next)
-        #     self.gait_phase = phase_next
+        if stopped:
+            self.gait_phase_accum_time = 0.0
+            phase_stopped = self.gait_phase.copy()
+            delta = ((phase_stopped + 0.5) % 1.0) - 0.5
+            step = self.dt / max(self.gait_cycle, 1e-6)
+            delta_step = np.clip(delta, -step, step)
+            phase_next = (phase_stopped - delta_step) % 1.0
+            phase_next = np.where(np.abs(delta - delta_step) < 1e-6, 0.0, phase_next)
+            self.gait_phase = phase_next
 
         advance = moving and (not just_started)
-        if True: #advance:
+        if advance:
             self.gait_phase_accum_time += self.dt
 
-        if True: #moving:
+        if moving:
             t = self.gait_phase_accum_time / self.gait_cycle
             self.gait_phase[0] = (t + self.phase_offset[0]) % 1.0
             self.gait_phase[1] = (t + self.phase_offset[1]) % 1.0
 
-        # if just_started:
-        #     self.gait_phase[:] = 0.0
+        if just_started:
+            self.gait_phase[:] = 0.0
+
+        # self.gait_phase_accum_time += self.dt
+        # self.gait_phase[0] = (self.gait_phase_accum_time / self.gait_cycle + self.phase_offset[0]) % 1.0
+        # self.gait_phase[1] = (self.gait_phase_accum_time / self.gait_cycle + self.phase_offset[1]) % 1.0
 
         self._was_moving = moving
 

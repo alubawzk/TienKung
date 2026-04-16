@@ -473,12 +473,13 @@ class Mini3_Env(VecEnv):
         self.reset_buf, self.time_out_buf = self.check_reset()
         reward_buf = self.reward_manager.compute(self.step_dt)
         self.reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+        terminal_amp_states = self.get_amp_obs_for_expert_trans()[self.reset_env_ids]
         self.reset(self.reset_env_ids)
 
         actor_obs, critic_obs = self.compute_observations()
         self.extras["observations"] = {"critic": critic_obs}
 
-        return actor_obs, reward_buf, self.reset_buf, self.extras
+        return actor_obs, reward_buf, self.reset_buf, self.extras, terminal_amp_states
 
     def check_reset(self):
         net_contact_forces = self.contact_sensor.data.net_forces_w_history
@@ -526,6 +527,17 @@ class Mini3_Env(VecEnv):
         
         time_out_buf = self.episode_length_buf >= self.max_episode_length
         reset_buf |= time_out_buf
+
+        # --- 调试打印 ---
+        # if reset_buf.any():
+        #     env_idx = reset_buf.nonzero(as_tuple=True)[0][0].item()
+        #     body_forces_env = body_forces[env_idx]
+        #     triggered_ids = (body_forces_env > 1.0).nonzero(as_tuple=True)[0]
+        #     body_names = [self.contact_sensor.body_names[i] for i in self.termination_contact_cfg.body_ids]
+        #     for idx in triggered_ids:
+        #         print(f"[RESET] body: {body_names[idx]}, force: {body_forces_env[idx]:.2f} N")
+        # # --- 调试结束 ---
+
         return reset_buf, time_out_buf
 
     def init_obs_buffer(self):

@@ -123,7 +123,7 @@ def play():
         with torch.inference_mode():
             actions = policy(obs)
             obs, _, _, _ = env.step(actions)
-
+            # import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
     play()

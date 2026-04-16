@@ -53,7 +53,7 @@ from .cat_traverse_cfg import (
 @configclass
 class FlowMimicRewardCfg:
     tracking_orientation = RewTerm(func=mdp.cat_tracking_orientation, weight=2.0, params={"torso_height_upper": 1.0})
-    tracking_root_field  = RewTerm(func=mdp.cat_tracking_root_field, weight=3.0)   # ↑ x3 encourage forward motion
+    tracking_root_field  = RewTerm(func=mdp.cat_tracking_root_field, weight=50.0)   # ↑ x3 encourage forward motion
     body_motion          = RewTerm(func=mdp.cat_body_motion, weight=-0.5)
     body_rotation        = RewTerm(func=mdp.cat_body_rotation, weight=1.0, params={"yaw_cmd_max": 0.5})
     feet_rotation        = RewTerm(func=mdp.cat_feet_rotation, weight=0.0)
@@ -80,14 +80,14 @@ class FlowMimicRewardCfg:
         },
     )
     smoothness_action = RewTerm(func=mdp.cat_smoothness_action, weight=-1.0e-3)
-    headgf  = RewTerm(func=mdp.cat_pf_alignment_reward, weight=1.0, params={"group_name": "head",      "tau": 0.5})
-    feetgf  = RewTerm(func=mdp.cat_pf_alignment_reward, weight=1.0, params={"group_name": "feet",      "tau": 0.3, "block_stance_feet": True})
-    handsgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=1.0, params={"group_name": "hands",     "tau": 0.5})
-    headdf  = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=1.0, params={"group_name": "head"})
-    feetdf  = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=1.0, params={"group_name": "feet"})
-    handsdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=1.0, params={"group_name": "hands"})
-    kneesdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=1.0, params={"group_name": "knees"})
-    shldsdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=1.0, params={"group_name": "shoulders"})
+    headgf  = RewTerm(func=mdp.cat_pf_alignment_reward, weight=5.0, params={"group_name": "head",      "tau": 0.5})
+    feetgf  = RewTerm(func=mdp.cat_pf_alignment_reward, weight=5.0, params={"group_name": "feet",      "tau": 0.3, "block_stance_feet": True})
+    handsgf = RewTerm(func=mdp.cat_pf_alignment_reward, weight=5.0, params={"group_name": "hands",     "tau": 0.5})
+    headdf  = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=5.0, params={"group_name": "head"})
+    feetdf  = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=5.0, params={"group_name": "feet"})
+    handsdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=5.0, params={"group_name": "hands"})
+    kneesdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=5.0, params={"group_name": "knees"})
+    shldsdf = RewTerm(func=mdp.cat_pf_sdf_penalty,      weight=5.0, params={"group_name": "shoulders"})
 
 
 # ──────────────────────────────────────────────────────────────────────────────

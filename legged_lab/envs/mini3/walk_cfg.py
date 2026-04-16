@@ -231,6 +231,8 @@ class Mini3_WalkFlatEnvCfg:
         ranges=CommandRangesCfg(
             lin_vel_x=(-0.5, 0.8), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.57, 1.57), heading=(-math.pi, math.pi)
         ),
+        rel_sudden_stop_envs=0.3,
+        dead_zone_vel=0.1,
     )
     noise: NoiseCfg = NoiseCfg(
         add_noise=True,

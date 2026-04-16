@@ -106,6 +106,8 @@ class CommandsCfg:
     heading_control_stiffness: float = 0.5
     debug_vis: bool = True
     ranges: CommandRangesCfg = CommandRangesCfg()
+    rel_sudden_stop_envs: float = 0.0
+    dead_zone_vel: float = 0.0
 
 
 @configclass

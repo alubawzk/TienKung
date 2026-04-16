@@ -22,7 +22,7 @@ import math
 import numpy as np
 import torch
 from isaaclab.assets.articulation import Articulation
-from isaaclab.envs.mdp.commands import UniformVelocityCommand, UniformVelocityCommandCfg
+from legged_lab.mdp.commands import SuddenStopVelocityCommand, SuddenStopVelocityCommandCfg
 from isaaclab.managers import EventManager, RewardManager
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.scene import InteractiveScene
@@ -100,7 +100,7 @@ class Mini3_Env(VecEnv):
         if self.cfg.scene.depth_camera.enable_depth_camera:
             self.depth_camera: TiledCamera = self.scene.sensors["depth_camera"]
 
-        command_cfg = UniformVelocityCommandCfg(
+        command_cfg = SuddenStopVelocityCommandCfg(
             asset_name="robot",
             resampling_time_range=self.cfg.commands.resampling_time_range,
             rel_standing_envs=self.cfg.commands.rel_standing_envs,
@@ -109,8 +109,10 @@ class Mini3_Env(VecEnv):
             heading_control_stiffness=self.cfg.commands.heading_control_stiffness,
             debug_vis=self.cfg.commands.debug_vis,
             ranges=self.cfg.commands.ranges,
+            rel_sudden_stop_envs=self.cfg.commands.rel_sudden_stop_envs,
+            dead_zone_vel=self.cfg.commands.dead_zone_vel,
         )
-        self.command_generator = UniformVelocityCommand(cfg=command_cfg, env=self)
+        self.command_generator = SuddenStopVelocityCommand(cfg=command_cfg, env=self)
         self.reward_manager = RewardManager(self.cfg.reward, self)
 
         self.init_buffers()
